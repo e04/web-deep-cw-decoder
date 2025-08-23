@@ -2,7 +2,7 @@ import { useState } from "react";
 import { SAMPLE_RATE } from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
-import { Box, Button, Stack } from "@mantine/core";
+import { Box, Button, Space, Stack } from "@mantine/core";
 
 export const Decoder = () => {
   const { startDecoding, loaded, currentText } = useDecode();
@@ -47,7 +47,7 @@ export const Decoder = () => {
         style={{
           whiteSpace: "pre-wrap",
           width: "100%",
-          fontFamily: "monospace",
+          fontFamily: '"Roboto Mono", monospace',
           display: "flex",
           justifyContent: "space-between",
           fontSize: "20px",
@@ -58,8 +58,7 @@ export const Decoder = () => {
         {Array.from(currentText).map((item, index) => (
           <div key={index}>{item}</div>
         ))}
-        <div> </div>
-        <div> </div>
+        <Space w={64} />
       </Box>
     </Stack>
   );

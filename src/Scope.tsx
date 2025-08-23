@@ -63,8 +63,8 @@ export const Scope = ({ stream }: ScopeProps) => {
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2 ** 12;
     analyser.smoothingTimeConstant = 0;
-    analyser.minDecibels = -70;
-    analyser.maxDecibels = -10;
+    analyser.minDecibels = -60;
+    analyser.maxDecibels = -20;
     source.connect(analyser);
 
     nodesRef.current = { audioCtx, source, analyser };
@@ -124,8 +124,8 @@ export const Scope = ({ stream }: ScopeProps) => {
       }
       const buf = column.data;
       const nyquist = audioCtx.sampleRate / 2;
-      const minFreqHz = 200;
-      const maxFreqHz = 1400;
+      const minFreqHz = 100;
+      const maxFreqHz = 1500;
       const minBin = Math.floor((minFreqHz / nyquist) * (freqBins - 1));
       const maxBin = Math.min(
         freqBins - 1,
