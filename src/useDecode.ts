@@ -48,37 +48,23 @@ const initDecode = async (
   );
 };
 
-function audioToSpectrogram(audio: Float32Array) {
-  const fft = new STFT(FFT_LENGTH);
-  const complexResult = fft.createComplexArray();
-  const spectrogram = [];
+function audioToSpectrogram(audio: Float32Array): Float32Array[] {
+  const stft = new STFT(FFT_LENGTH, HOP_LENGTH);
 
-  const hanningWindow = new Float32Array(FFT_LENGTH);
-  for (let i = 0; i < FFT_LENGTH; i++) {
-    hanningWindow[i] =
-      0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (FFT_LENGTH - 1));
-  }
+  const complexSpectrogram = stft.analyze(audio);
 
-  for (let i = 0; i + FFT_LENGTH <= audio.length; i += HOP_LENGTH) {
-    const frame = audio.subarray(i, i + FFT_LENGTH);
-
-    const windowedFrame = new Float32Array(FFT_LENGTH);
-    for (let j = 0; j < FFT_LENGTH; j++) {
-      windowedFrame[j] = frame[j] * hanningWindow[j];
-    }
-
-    const realFrame = fft.toComplexArray(windowedFrame);
-    fft.transform(complexResult, realFrame);
-
+  const magnitudeSpectrogram = complexSpectrogram.map((complexFrame) => {
     const magnitudes = new Float32Array(FFT_LENGTH / 2 + 1);
+
     for (let j = 0; j < magnitudes.length; j++) {
-      const real = complexResult[j * 2];
-      const imag = complexResult[j * 2 + 1];
+      const real = complexFrame[j * 2];
+      const imag = complexFrame[j * 2 + 1];
       magnitudes[j] = Math.sqrt(real * real + imag * imag);
     }
-    spectrogram.push(magnitudes);
-  }
-  return spectrogram;
+    return magnitudes;
+  });
+
+  return magnitudeSpectrogram;
 }
 
 async function runInference(setCurrentText: (text: string) => void) {
