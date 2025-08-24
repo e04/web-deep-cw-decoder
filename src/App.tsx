@@ -6,11 +6,14 @@ function App() {
     <Container strategy="block" size={800} mt="md">
       <Stack>
         <Flex align="center" justify="space-between">
-          <Text size="xl" fw={700} c="dimmed">
-            web-deep-cw-decoder
+          <Text size="xl" fw={700}>
+            web-deep-cw-decoder{" "}
+            <Text size="xs" c="dimmed">
+              AI-based Morse Decoder
+            </Text>
           </Text>
           <Text size="xs" c="dimmed">
-            v0.0.2
+            v0.0.3
           </Text>
         </Flex>
         <Decoder />

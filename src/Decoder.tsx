@@ -9,7 +9,6 @@ import {
   Badge,
   Stack,
   NativeSelect,
-  NumberInput,
   Tooltip,
 } from "@mantine/core";
 
@@ -67,6 +66,8 @@ export const Decoder = () => {
               height: "256px",
               width: "100%",
               background: "var(--mantine-color-black)",
+              borderRadius: "4px",
+              border: "1px solid var(--mantine-color-dark-4)",
             }}
           />
         )}
@@ -93,6 +94,7 @@ export const Decoder = () => {
           fontSize: "20px",
           backgroundColor: "var(--mantine-color-dark-9)",
           borderRadius: "4px",
+          border: "1px solid var(--mantine-color-dark-4)",
         }}
       >
         {Array.from(currentText).map((item, index) => (
@@ -101,16 +103,6 @@ export const Decoder = () => {
       </Box>
 
       <Flex gap="md" justify="flex-end">
-        <Tooltip label="CLICK SCOPE" color="black">
-          <NumberInput
-            label="FIL CEN"
-            value={filterFreq ?? 0}
-            onChange={(value) => setFilterFreq(Number(value))}
-            rightSection={"Hz"}
-            disabled
-            w={80}
-          />
-        </Tooltip>
         <NativeSelect
           label="FIL WID"
           data={["50", "100", "250", "300", "500"]}
@@ -122,7 +114,7 @@ export const Decoder = () => {
         />{" "}
         <Tooltip label="CURRENTLY UNAVAILABLE" color="black">
           <NativeSelect
-            label="LANG"
+            label="CW LANG"
             data={["EN", "EN/JP"]}
             value="EN"
             disabled
