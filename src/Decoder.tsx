@@ -7,7 +7,6 @@ import {
   Button,
   Flex,
   Badge,
-  Space,
   Stack,
   NativeSelect,
   NumberInput,
@@ -99,7 +98,6 @@ export const Decoder = () => {
         {Array.from(currentText).map((item, index) => (
           <div key={index}>{item}</div>
         ))}
-        <Space w={64} />
       </Box>
 
       <Flex gap="md" justify="flex-end">
