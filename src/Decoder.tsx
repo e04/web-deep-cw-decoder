@@ -73,13 +73,11 @@ export const Decoder = () => {
         )}
         <Box pos="absolute" top={8} right={8}>
           <Badge
-            color={filterFreq ? "green" : "gray"}
+            color={filterFreq ? "orange" : "gray"}
             size="md"
             variant="outline"
           >
-            {filterFreq
-              ? `CEN: ${filterFreq} Hz / WID: ${filterWidth} Hz`
-              : "FIL OFF"}
+            {filterFreq ? `CEN: ${filterFreq} Hz ` : "FIL OFF"}
           </Badge>
         </Box>
       </Box>
