@@ -1,7 +1,7 @@
 const VOCABULARY = [
   "[UNK]",
-  ",",
-  ".",
+  ",", // delete
+  ".", // delete
   "/",
   "0",
   "1",
@@ -45,8 +45,9 @@ const VOCABULARY = [
   "",
   "",
   "",
-  "",
-  "",
+  "", // delete
+  "", // delete
+// '',
   " ",
 ];
 
@@ -56,8 +57,9 @@ export const ABBREVIATION = {
   "": "HH",
   "": "KN",
   "": "SK",
-  "": "ﾎﾚ",
-  "": "ﾗﾀ",
+  "": "ﾎﾚ", // delete
+  "": "ﾗﾀ", // delete
+//  "": "BK",
 };
 
 export const NumToChar = Object.fromEntries(
@@ -68,5 +70,5 @@ export const FFT_LENGTH = 256;
 export const HOP_LENGTH = 64;
 export const SAMPLE_RATE = 4000;
 export const BUFFER_DURATION_S = 8;
-export const INFERENCE_INTERVAL_S = 0.01;
+export const INFERENCE_INTERVAL_S = 0.1;
 export const BUFFER_SAMPLES = BUFFER_DURATION_S * SAMPLE_RATE;

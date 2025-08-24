@@ -1,6 +1,6 @@
 import ort, { InferenceSession } from "onnxruntime-web";
 import { STFT } from "./stft";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   BUFFER_SAMPLES,
   FFT_LENGTH,
@@ -14,11 +14,11 @@ import {
 let ortSession: InferenceSession | null = null;
 let audioContext: AudioContext | null = null;
 let scriptProcessor: ScriptProcessorNode | null = null;
-let inferenceIntervalId: NodeJS.Timeout | null = null;
 
 const audioBuffer: Float32Array = new Float32Array(BUFFER_SAMPLES);
 
 const loadModel = async () => {
+  if (ortSession) return;
   ortSession = await ort.InferenceSession.create("model.onnx", {
     executionProviders: ["wasm"],
   });
@@ -31,27 +31,93 @@ function audioCallback(event: AudioProcessingEvent) {
   audioBuffer.copyWithin(0, chunkLen);
   audioBuffer.set(chunk, BUFFER_SAMPLES - chunkLen);
 }
+function applyBandpassFilter(
+  audioData: Float32Array,
+  sampleRate: number,
+  centerFreq: number,
+  bandwidth: number,
+  passes: number = 4
+): Float32Array {
+  const q = centerFreq / bandwidth;
+  const omega = (2 * Math.PI * centerFreq) / sampleRate;
+  const sinOmega = Math.sin(omega);
+  const cosOmega = Math.cos(omega);
+  const alpha = sinOmega / (2 * q);
 
-const initDecode = async (
-  stream: MediaStream,
-  setCurrentText: (text: string) => void
-) => {
+  const b0 = alpha;
+  const b1 = 0;
+  const b2 = -alpha;
+  const a0 = 1 + alpha;
+  const a1 = -2 * cosOmega;
+  const a2 = 1 - alpha;
+
+  const normB0 = b0 / a0;
+  const normB1 = b1 / a0;
+  const normB2 = b2 / a0;
+  const normA1 = a1 / a0;
+  const normA2 = a2 / a0;
+
+  let input = audioData;
+  let output = new Float32Array(audioData.length);
+
+  for (let p = 0; p < passes; p++) {
+    let x1 = 0,
+      x2 = 0;
+    let y1 = 0,
+      y2 = 0;
+
+    for (let i = 0; i < input.length; i++) {
+      const x0 = input[i];
+      const y0 =
+        normB0 * x0 + normB1 * x1 + normB2 * x2 - normA1 * y1 - normA2 * y2;
+
+      output[i] = y0;
+
+      x2 = x1;
+      x1 = x0;
+      y2 = y1;
+      y1 = y0;
+    }
+    input = output;
+
+    if (p < passes - 1) {
+      output = new Float32Array(audioData.length);
+    }
+  }
+
+  return output;
+}
+
+const initAudioProcessing = (stream: MediaStream) => {
+  if (audioContext) {
+    return;
+  }
   audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
   const source = audioContext.createMediaStreamSource(stream);
   scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
   scriptProcessor.onaudioprocess = audioCallback;
   source.connect(scriptProcessor);
   scriptProcessor.connect(audioContext.destination);
-  inferenceIntervalId = setInterval(
-    () => runInference(setCurrentText),
-    INFERENCE_INTERVAL_S * 1000
-  );
 };
 
-function audioToSpectrogram(audio: Float32Array): Float32Array[] {
-  const stft = new STFT(FFT_LENGTH, HOP_LENGTH);
+function audioToSpectrogram(
+  audio: Float32Array,
+  filterFreq: number | null,
+  filterWidth: number
+): Float32Array[] {
+  let processedAudio = audio;
 
-  const complexSpectrogram = stft.analyze(audio);
+  if (filterFreq !== null && filterWidth > 0) {
+    processedAudio = applyBandpassFilter(
+      audio,
+      SAMPLE_RATE,
+      filterFreq,
+      filterWidth
+    );
+  }
+
+  const stft = new STFT(FFT_LENGTH, HOP_LENGTH);
+  const complexSpectrogram = stft.analyze(processedAudio);
 
   const magnitudeSpectrogram = complexSpectrogram.map((complexFrame) => {
     const magnitudes = new Float32Array(FFT_LENGTH / 2 + 1);
@@ -67,42 +133,38 @@ function audioToSpectrogram(audio: Float32Array): Float32Array[] {
   return magnitudeSpectrogram;
 }
 
-async function runInference(setCurrentText: (text: string) => void) {
+async function runInference(
+  setCurrentText: (text: string) => void,
+  filterFreq: number | null,
+  filterWidth: number
+) {
   if (!ortSession || !audioContext) return;
+  const spectrogram = audioToSpectrogram(audioBuffer, filterFreq, filterWidth);
+  const timeSteps = spectrogram.length;
+  if (timeSteps === 0) return;
+  const freqBins = spectrogram[0].length;
 
-  try {
-    const spectrogram = audioToSpectrogram(audioBuffer);
-    const timeSteps = spectrogram.length;
-    if (timeSteps === 0) return;
-    const freqBins = spectrogram[0].length;
-
-    const flattenedSpectrogram = new Float32Array(timeSteps * freqBins);
-    for (let t = 0; t < timeSteps; t++) {
-      flattenedSpectrogram.set(spectrogram[t], t * freqBins);
-    }
-
-    const dims = [1, timeSteps, freqBins, 1];
-    const inputTensor = new ort.Tensor("float32", flattenedSpectrogram, dims);
-
-    const inputName = ortSession.inputNames[0];
-    const feeds = { [inputName]: inputTensor };
-
-    const results = await ortSession.run(feeds);
-    const outputTensor = results[ortSession.outputNames[0]];
-
-    const decodedTextList = decodePredictions(
-      outputTensor.data,
-      outputTensor.dims
-    );
-    const currentText = decodedTextList.length > 0 ? decodedTextList[0] : "";
-
-    setCurrentText(currentText);
-  } catch (e) {
-    console.error(e);
-    clearInterval(inferenceIntervalId!);
-    if (audioContext) audioContext.close();
-    audioContext = null;
+  const flattenedSpectrogram = new Float32Array(timeSteps * freqBins);
+  for (let t = 0; t < timeSteps; t++) {
+    flattenedSpectrogram.set(spectrogram[t], t * freqBins);
   }
+
+  const dims = [1, timeSteps, freqBins, 1];
+  const inputTensor = new ort.Tensor("float32", flattenedSpectrogram, dims);
+
+  const inputName = ortSession.inputNames[0];
+  const feeds = { [inputName]: inputTensor };
+
+  const results = await ortSession.run(feeds);
+  const outputTensor = results[ortSession.outputNames[0]];
+
+  const decodedTextList = decodePredictions(
+    outputTensor.data,
+    outputTensor.dims
+  );
+  const currentText = decodedTextList.length > 0 ? decodedTextList[0] : "";
+
+  setCurrentText(currentText);
 }
 
 function decodePredictions(
@@ -155,9 +217,19 @@ function decodePredictions(
   return outputText;
 }
 
-export const useDecode = () => {
+export const useDecode = ({
+  filterFreq,
+  filterWidth,
+}: {
+  filterFreq: number | null;
+  filterWidth: number;
+}) => {
   const [loaded, setLoaded] = useState(false);
-  const [currentText, setCurrentText] = useState("");
+  const [currentText, setCurrentText] = useState(" ");
+  const [isDecoding, setIsDecoding] = useState(false);
+
+  const streamRef = useRef<MediaStream | null>(null);
+  const filterParamsRef = useRef({ filterFreq, filterWidth });
 
   useEffect(() => {
     (async () => {
@@ -166,14 +238,55 @@ export const useDecode = () => {
     })();
   }, []);
 
-  const startDecoding = async (stream: MediaStream) => {
-    if (!ortSession) {
-      console.error("ONNX Runtime session is not initialized.");
-      return;
+  useEffect(() => {
+    filterParamsRef.current = { filterFreq, filterWidth };
+  }, [filterFreq, filterWidth]);
+
+  useEffect(() => {
+    let inferenceIntervalId: NodeJS.Timeout | null = null;
+
+    if (isDecoding && streamRef.current) {
+      initAudioProcessing(streamRef.current);
+
+      inferenceIntervalId = setInterval(() => {
+        const { filterFreq, filterWidth } = filterParamsRef.current;
+        runInference(setCurrentText, filterFreq, filterWidth);
+      }, INFERENCE_INTERVAL_S * 1000);
     }
 
-    await initDecode(stream, setCurrentText);
+    return () => {
+      if (inferenceIntervalId) {
+        clearInterval(inferenceIntervalId);
+      }
+      if (audioContext) {
+        if (scriptProcessor) {
+          scriptProcessor.disconnect();
+          scriptProcessor = null;
+        }
+        audioContext.close().then(() => {
+          audioContext = null;
+        });
+      }
+    };
+  }, [isDecoding]);
+
+  const startDecoding = (stream: MediaStream) => {
+    if (!loaded) {
+      console.error("モデルがまだロードされていません。");
+      return;
+    }
+    if (isDecoding) {
+      stopDecoding();
+    }
+    streamRef.current = stream;
+    setIsDecoding(true);
   };
 
-  return { startDecoding, loaded, currentText };
+  const stopDecoding = () => {
+    setIsDecoding(false);
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
+
+  return { startDecoding, stopDecoding, loaded, currentText, isDecoding };
 };

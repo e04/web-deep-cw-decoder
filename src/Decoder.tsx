@@ -4,9 +4,15 @@ import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
 import { Box, Button, Space, Stack } from "@mantine/core";
 
+const filterWidth = 200;
+
 export const Decoder = () => {
-  const { startDecoding, loaded, currentText } = useDecode();
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [filterFreq, setFilterFreq] = useState<number | null>(null);
+  const { startDecoding, loaded, currentText } = useDecode({
+    filterFreq,
+    filterWidth,
+  });
 
   const getStream = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -33,7 +39,12 @@ export const Decoder = () => {
         {stream ? "Decoding" : loaded ? "Start" : "Loading..."}
       </Button>
       {stream ? (
-        <Scope stream={stream} />
+        <Scope
+          stream={stream}
+          setFilterFreq={setFilterFreq}
+          filterFreq={filterFreq}
+          filterWidth={filterWidth}
+        />
       ) : (
         <Box
           style={{
