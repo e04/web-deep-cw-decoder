@@ -41,7 +41,7 @@ export const Decoder = () => {
   };
 
   return (
-    <Stack gap="xs">
+    <Stack gap={8}>
       <Flex justify="space-between" align="center">
         <Button
           w={200}
@@ -73,11 +73,15 @@ export const Decoder = () => {
         )}
         <Box pos="absolute" top={8} right={8}>
           <Badge
-            color={filterFreq ? "orange" : "gray"}
+            color={
+              filterFreq
+                ? "var(--mantine-color-gray-1)"
+                : "var(--mantine-color-gray-6)"
+            }
             size="md"
             variant="outline"
           >
-            {filterFreq ? `CEN: ${filterFreq} Hz ` : "FIL OFF"}
+            {filterFreq ? `FIL CEN: ${filterFreq} Hz ` : "FIL OFF"}
           </Badge>
         </Box>
       </Box>
@@ -103,14 +107,14 @@ export const Decoder = () => {
       <Flex gap="md" justify="flex-end">
         <NativeSelect
           label="FIL WID"
-          data={["50", "100", "250", "300", "500"]}
+          data={["50", "100", "250", "500"]}
           value={filterWidth.toString()}
           onChange={(event) =>
             setFilterWidth(Number(event.currentTarget.value))
           }
           rightSection={"Hz"}
         />{" "}
-        <Tooltip label="CURRENTLY UNAVAILABLE" color="black">
+        <Tooltip label="COMING SOON" color="black">
           <NativeSelect
             label="CW LANG"
             data={["EN", "EN/JP"]}
