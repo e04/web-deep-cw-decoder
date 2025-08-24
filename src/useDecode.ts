@@ -1,4 +1,4 @@
-import ort, { InferenceSession } from "onnxruntime-web";
+import type { InferenceSession, Tensor } from "onnxruntime-web";
 import { STFT } from "./stft";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -10,6 +10,8 @@ import {
   NumToChar,
   ABBREVIATION,
 } from "./const";
+// @ts-ignore
+import model from "./model.onnx";
 
 let ortSession: InferenceSession | null = null;
 let audioContext: AudioContext | null = null;
@@ -19,7 +21,7 @@ const audioBuffer: Float32Array = new Float32Array(BUFFER_SAMPLES);
 
 const loadModel = async () => {
   if (ortSession) return;
-  ortSession = await ort.InferenceSession.create("model.onnx", {
+  ortSession = await ort.InferenceSession.create(model, {
     executionProviders: ["wasm"],
   });
 };
@@ -169,8 +171,8 @@ async function runInference(
 }
 
 function decodePredictions(
-  pred: ort.Tensor["data"],
-  predShape: ort.Tensor["dims"]
+  pred: Tensor["data"],
+  predShape: Tensor["dims"]
 ) {
   const [batchSize, timeSteps, numClasses] = predShape;
   const outputText = [];
