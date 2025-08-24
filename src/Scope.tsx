@@ -2,10 +2,6 @@ import { useEffect, useRef } from "react";
 import { BUFFER_DURATION_S } from "./const";
 import { Box } from "@mantine/core";
 
-type ScopeProps = {
-  stream: MediaStream;
-};
-
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   const hue2rgb = (p: number, q: number, t: number) => {
     if (t < 0) t += 1;
@@ -44,7 +40,22 @@ function buildColorLUT(): Array<[number, number, number]> {
   return lut;
 }
 
-export const Scope = ({ stream }: ScopeProps) => {
+const minFreqHz = 100;
+const maxFreqHz = 1500;
+
+type ScopeProps = {
+  stream: MediaStream;
+  setFilterFreq: (freq: number | null) => void;
+  filterFreq: number | null;
+  filterWidth: number;
+};
+
+export const Scope = ({
+  stream,
+  setFilterFreq,
+  filterFreq,
+  filterWidth,
+}: ScopeProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const nodesRef = useRef<{
@@ -59,6 +70,8 @@ export const Scope = ({ stream }: ScopeProps) => {
   });
 
   useEffect(() => {
+    if (nodesRef.current) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -78,13 +91,10 @@ export const Scope = ({ stream }: ScopeProps) => {
     const colorLUT = buildColorLUT();
 
     let column: ImageData | null = null;
-    let running = true;
     renderStateRef.current.lastTime = performance.now();
     renderStateRef.current.pixelAccumulator = 0;
 
     const render = async () => {
-      if (!running) return;
-
       const currentCanvas = canvasRef.current;
       const currentNodes = nodesRef.current;
       if (!currentCanvas || !currentNodes) return;
@@ -128,8 +138,6 @@ export const Scope = ({ stream }: ScopeProps) => {
       }
       const buf = column.data;
       const nyquist = audioCtx.sampleRate / 2;
-      const minFreqHz = 100;
-      const maxFreqHz = 1500;
       const minBin = Math.floor((minFreqHz / nyquist) * (freqBins - 1));
       const maxBin = Math.min(
         freqBins - 1,
@@ -178,30 +186,84 @@ export const Scope = ({ stream }: ScopeProps) => {
     rafRef.current = requestAnimationFrame(() => void render());
 
     return () => {
-      running = false;
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       resizeObserver.disconnect();
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-
-      source.disconnect();
-      analyser.disconnect();
-
-      audioCtx.close().catch(() => undefined);
-      nodesRef.current = null;
+      if (nodesRef.current) {
+        nodesRef.current.source.disconnect();
+        nodesRef.current.analyser.disconnect();
+        nodesRef.current.audioCtx.close();
+        nodesRef.current = null;
+      }
     };
-  }, [stream]);
+  }, [stream, setFilterFreq]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const handleCanvasClick = (event: MouseEvent) => {
+      if (filterFreq) {
+        setFilterFreq(null);
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
+      const y = event.clientY - rect.top;
+      const canvasHeight = rect.height;
+
+      const invY = canvasHeight - y;
+      const frequencyRange = maxFreqHz - minFreqHz;
+      const frequency = minFreqHz + (invY / canvasHeight) * frequencyRange;
+
+      setFilterFreq(frequency);
+    };
+
+    canvas.addEventListener("click", handleCanvasClick);
+
+    return () => {
+      canvas.removeEventListener("click", handleCanvasClick);
+    };
+  }, [filterFreq, setFilterFreq]);
+
+  let bandTopPercent = 0;
+  let bandHeightPercent = 0;
+  if (filterFreq != null) {
+    const range = maxFreqHz - minFreqHz;
+    const half = filterWidth / 2;
+    const lower = Math.max(minFreqHz, filterFreq - half);
+    const upper = Math.min(maxFreqHz, filterFreq + half);
+    bandTopPercent = ((maxFreqHz - upper) / range) * 100;
+    bandHeightPercent = ((upper - lower) / range) * 100;
+  }
 
   return (
-    <Box
-      component="canvas"
-      ref={canvasRef}
-      style={{
-        display: "block",
-        background: "var(--mantine-color-black)",
-        width: "100%",
-        height: "256px",
-        borderRadius: "4px",
-      }}
-    />
+    <Box style={{ position: "relative", width: "100%" }}>
+      <Box
+        component="canvas"
+        ref={canvasRef}
+        style={{
+          display: "block",
+          background: "var(--mantine-color-black)",
+          width: "100%",
+          height: "256px",
+          borderRadius: "4px",
+        }}
+      />
+      {filterFreq != null && (
+        <Box
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: `${bandTopPercent}%`,
+            height: `${bandHeightPercent}%`,
+            borderTop: "2px solid var(--mantine-color-red-7)",
+            borderBottom: "2px solid var(--mantine-color-red-7)",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+    </Box>
   );
 };
