@@ -31,7 +31,11 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 function buildColorLUT(): Array<[number, number, number]> {
   const lut: Array<[number, number, number]> = new Array(256);
   for (let v = 0; v < 256; v++) {
-    const t = v / 255; // 0..1
+    let t = v / 255;
+
+    const gamma = 2.2;
+    t = Math.pow(t, gamma);
+
     const hue = (220 * (1 - t)) / 360;
     const sat = 1.0;
     const light = 0.15 + 0.75 * t;
@@ -63,8 +67,8 @@ export const Scope = ({ stream }: ScopeProps) => {
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2 ** 12;
     analyser.smoothingTimeConstant = 0;
-    analyser.minDecibels = -60;
-    analyser.maxDecibels = -20;
+    analyser.minDecibels = -70;
+    analyser.maxDecibels = -30;
     source.connect(analyser);
 
     nodesRef.current = { audioCtx, source, analyser };
