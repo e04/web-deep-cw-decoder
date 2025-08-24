@@ -3,8 +3,8 @@ import { Decoder } from "./Decoder";
 
 function App() {
   return (
-    <Container strategy="block" size={800} mt="md">
-      <Stack>
+    <Container strategy="block" size={800} p="8">
+      <Stack gap={8}>
         <Flex align="center" justify="space-between">
           <Text size="xl" fw={700}>
             web-deep-cw-decoder{" "}
