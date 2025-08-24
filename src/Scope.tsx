@@ -216,7 +216,7 @@ export const Scope = ({
       const frequencyRange = maxFreqHz - minFreqHz;
       const frequency = minFreqHz + (invY / canvasHeight) * frequencyRange;
 
-      setFilterFreq(frequency);
+      setFilterFreq(Math.ceil(frequency));
     };
 
     canvas.addEventListener("click", handleCanvasClick);
@@ -258,8 +258,8 @@ export const Scope = ({
             right: 0,
             top: `${bandTopPercent}%`,
             height: `${bandHeightPercent}%`,
-            borderTop: "2px solid var(--mantine-color-red-7)",
-            borderBottom: "2px solid var(--mantine-color-red-7)",
+            borderTop: "1px solid var(--mantine-color-red-7)",
+            borderBottom: "1px solid var(--mantine-color-red-7)",
             pointerEvents: "none",
           }}
         />

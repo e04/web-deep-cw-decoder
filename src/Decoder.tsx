@@ -2,14 +2,23 @@ import { useState } from "react";
 import { SAMPLE_RATE } from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
-import { Box, Button, Space, Stack } from "@mantine/core";
-
-const filterWidth = 200;
+import {
+  Box,
+  Button,
+  Flex,
+  Badge,
+  Space,
+  Stack,
+  NativeSelect,
+  NumberInput,
+  Tooltip,
+} from "@mantine/core";
 
 export const Decoder = () => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [filterFreq, setFilterFreq] = useState<number | null>(null);
-  const { startDecoding, loaded, currentText } = useDecode({
+  const [filterWidth, setFilterWidth] = useState<number>(250);
+  const { startDecoding, loaded, currentText, isDecoding } = useDecode({
     filterFreq,
     filterWidth,
   });
@@ -35,25 +44,46 @@ export const Decoder = () => {
 
   return (
     <Stack gap="xs">
-      <Button onClick={_startDecoding} disabled={!loaded || !!stream}>
-        {stream ? "Decoding" : loaded ? "Start" : "Loading..."}
-      </Button>
-      {stream ? (
-        <Scope
-          stream={stream}
-          setFilterFreq={setFilterFreq}
-          filterFreq={filterFreq}
-          filterWidth={filterWidth}
-        />
-      ) : (
-        <Box
-          style={{
-            height: "256px",
-            width: "100%",
-            background: "var(--mantine-color-black)",
-          }}
-        />
-      )}
+      <Flex justify="space-between" align="center">
+        <Button
+          w={200}
+          color="indigo"
+          onClick={_startDecoding}
+          disabled={!loaded || isDecoding}
+        >
+          {isDecoding ? "DECODING" : loaded ? "START" : "LOADING..."}
+        </Button>
+      </Flex>
+      <Box pos="relative">
+        {stream ? (
+          <Scope
+            stream={stream}
+            setFilterFreq={setFilterFreq}
+            filterFreq={filterFreq}
+            filterWidth={filterWidth}
+          />
+        ) : (
+          <Box
+            style={{
+              height: "256px",
+              width: "100%",
+              background: "var(--mantine-color-black)",
+            }}
+          />
+        )}
+        <Box pos="absolute" top={8} right={8}>
+          <Badge
+            color={filterFreq ? "green" : "gray"}
+            size="md"
+            variant="outline"
+          >
+            {filterFreq
+              ? `CEN: ${filterFreq} Hz / WID: ${filterWidth} Hz`
+              : "FIL OFF"}
+          </Badge>
+        </Box>
+      </Box>
+
       <Box
         style={{
           whiteSpace: "pre-wrap",
@@ -71,6 +101,36 @@ export const Decoder = () => {
         ))}
         <Space w={64} />
       </Box>
+
+      <Flex gap="md" justify="flex-end">
+        <Tooltip label="CLICK SCOPE" color="black">
+          <NumberInput
+            label="FIL CEN"
+            value={filterFreq ?? 0}
+            onChange={(value) => setFilterFreq(Number(value))}
+            rightSection={"Hz"}
+            disabled
+            w={80}
+          />
+        </Tooltip>
+        <NativeSelect
+          label="FIL WID"
+          data={["50", "100", "250", "300", "500"]}
+          value={filterWidth.toString()}
+          onChange={(event) =>
+            setFilterWidth(Number(event.currentTarget.value))
+          }
+          rightSection={"Hz"}
+        />{" "}
+        <Tooltip label="CURRENTLY UNAVAILABLE" color="black">
+          <NativeSelect
+            label="LANG"
+            data={["EN", "EN/JP"]}
+            value="EN"
+            disabled
+          />
+        </Tooltip>
+      </Flex>
     </Stack>
   );
 };

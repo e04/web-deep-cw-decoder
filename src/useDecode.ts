@@ -31,6 +31,7 @@ function audioCallback(event: AudioProcessingEvent) {
   audioBuffer.copyWithin(0, chunkLen);
   audioBuffer.set(chunk, BUFFER_SAMPLES - chunkLen);
 }
+
 function applyBandpassFilter(
   audioData: Float32Array,
   sampleRate: number,
