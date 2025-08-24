@@ -1,5 +1,5 @@
-export class STFT {
-  private fftSize: number;
+export class FFT {
+  public readonly fftSize: number;
   private reverseTable: Uint32Array;
   private sinTable: Float32Array;
   private cosTable: Float32Array;
@@ -9,6 +9,7 @@ export class STFT {
       throw new Error("FFT size must be a power of 2.");
     }
     this.fftSize = fftSize;
+
     this.reverseTable = new Uint32Array(fftSize);
     this.sinTable = new Float32Array(fftSize);
     this.cosTable = new Float32Array(fftSize);
@@ -24,34 +25,23 @@ export class STFT {
     }
 
     for (let i = 0; i < fftSize; i++) {
-      this.sinTable[i] = Math.sin((-2 * Math.PI * i) / fftSize);
-      this.cosTable[i] = Math.cos((-2 * Math.PI * i) / fftSize);
+      const angle = (-2 * Math.PI * i) / fftSize;
+      this.sinTable[i] = Math.sin(angle);
+      this.cosTable[i] = Math.cos(angle);
     }
   }
 
-  createComplexArray(): Float32Array {
-    return new Float32Array(this.fftSize * 2);
-  }
-
-  toComplexArray(realArray: Float32Array): Float32Array {
-    const complexArray = this.createComplexArray();
-    for (let i = 0; i < this.fftSize; i++) {
-      complexArray[i * 2] = realArray[i];
-    }
-    return complexArray;
-  }
-
-  transform(output: Float32Array, input: Float32Array): void {
+  public transform(complexArray: Float32Array): void {
     for (let i = 0; i < this.fftSize; i++) {
       const reversedIndex = this.reverseTable[i];
       if (i < reversedIndex) {
-        [input[i * 2], input[reversedIndex * 2]] = [
-          input[reversedIndex * 2],
-          input[i * 2],
+        [complexArray[i * 2], complexArray[reversedIndex * 2]] = [
+          complexArray[reversedIndex * 2],
+          complexArray[i * 2],
         ];
-        [input[i * 2 + 1], input[reversedIndex * 2 + 1]] = [
-          input[reversedIndex * 2 + 1],
-          input[i * 2 + 1],
+        [complexArray[i * 2 + 1], complexArray[reversedIndex * 2 + 1]] = [
+          complexArray[reversedIndex * 2 + 1],
+          complexArray[i * 2 + 1],
         ];
       }
     }
@@ -68,23 +58,75 @@ export class STFT {
           const i_j = (i + j) * 2;
           const i_j_half = (i + j + halfSize) * 2;
 
-          const tr = wReal * input[i_j_half] - wImag * input[i_j_half + 1];
-          const ti = wReal * input[i_j_half + 1] + wImag * input[i_j_half];
+          const tr =
+            wReal * complexArray[i_j_half] - wImag * complexArray[i_j_half + 1];
+          const ti =
+            wReal * complexArray[i_j_half + 1] + wImag * complexArray[i_j_half];
 
-          const ur = input[i_j];
-          const ui = input[i_j + 1];
+          const ur = complexArray[i_j];
+          const ui = complexArray[i_j + 1];
 
-          output[i_j] = ur + tr;
-          output[i_j + 1] = ui + ti;
-          output[i_j_half] = ur - tr;
-          output[i_j_half + 1] = ui - ti;
-        }
-      }
-      if (halfSize * 2 < this.fftSize) {
-        for (let k = 0; k < this.fftSize * 2; k++) {
-          input[k] = output[k];
+          complexArray[i_j] = ur + tr;
+          complexArray[i_j + 1] = ui + ti;
+          complexArray[i_j_half] = ur - tr;
+          complexArray[i_j_half + 1] = ui - ti;
         }
       }
     }
+  }
+}
+
+export class STFT {
+  public readonly fftSize: number;
+  public readonly hopSize: number;
+  private fft: FFT;
+  private window: Float32Array;
+
+  constructor(fftSize: number, hopSize: number) {
+    if (fftSize <= 0) {
+      throw new Error("FFT size must be positive.");
+    }
+    if (hopSize <= 0) {
+      throw new Error("Hop size must be positive.");
+    }
+
+    this.fftSize = fftSize;
+    this.hopSize = hopSize;
+    this.fft = new FFT(fftSize);
+    this.window = this.generateHanningWindow();
+  }
+
+  private generateHanningWindow(): Float32Array {
+    const window = new Float32Array(this.fftSize);
+    for (let i = 0; i < this.fftSize; i++) {
+      window[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.fftSize - 1)));
+    }
+    return window;
+  }
+
+  public analyze(signal: Float32Array): Float32Array[] {
+    const spectrogram: Float32Array[] = [];
+    const frame = new Float32Array(this.fftSize);
+    const complexFrame = new Float32Array(this.fftSize * 2);
+
+    for (let i = 0; i + this.fftSize <= signal.length; i += this.hopSize) {
+      const signalSlice = signal.subarray(i, i + this.fftSize);
+      frame.set(signalSlice);
+
+      for (let j = 0; j < this.fftSize; j++) {
+        frame[j] *= this.window[j];
+      }
+
+      for (let j = 0; j < this.fftSize; j++) {
+        complexFrame[j * 2] = frame[j];
+        complexFrame[j * 2 + 1] = 0;
+      }
+
+      this.fft.transform(complexFrame);
+
+      spectrogram.push(complexFrame.slice());
+    }
+
+    return spectrogram;
   }
 }
