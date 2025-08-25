@@ -81,13 +81,6 @@ export const Decoder = () => {
     return newStream;
   };
 
-  const _startDecoding = async () => {
-    const stream = await getStream();
-    if (stream) {
-      await startDecoding(stream);
-    }
-  };
-
   return (
     <Stack gap={8}>
       <Flex justify="space-between" align="center">
