@@ -5,17 +5,19 @@ function App() {
   return (
     <Container strategy="block" size={800} p="8">
       <Stack gap={8}>
-        <Flex align="center" justify="space-between">
-          <Text size="xl" fw={700}>
-            web-deep-cw-decoder{" "}
-            <Text component="span" size="xs" c="dimmed">
-              An AI-based Morse Decoder
+        <Stack gap={0}>
+          <Flex align="center" justify="space-between">
+            <Text size="xl" fw={700}>
+              web-deep-cw-decoder
             </Text>
-          </Text>
+            <Text size="xs" c="dimmed">
+              v0.0.4
+            </Text>
+          </Flex>
           <Text size="xs" c="dimmed">
-            v0.0.4
+            An AI-based Morse Decoder
           </Text>
-        </Flex>
+        </Stack>
         <Decoder />
         <Flex justify="right">
           <Text component="a" c="dimmed" href="https://github.com/e04/">

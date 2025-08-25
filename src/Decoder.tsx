@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"; // useEffectをインポート
+import { useState } from "react"; // useEffectをインポート
 import { SAMPLE_RATE } from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
@@ -21,44 +21,26 @@ export const Decoder = () => {
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>(
     []
   );
-  const [selectedAudioInput, setSelectedAudioInput] = useState<string>("");
+  const [selectedAudioInput, _setSelectedAudioInput] = useState<string>("");
 
-  const { startDecoding, loaded, currentText, isDecoding } = useDecode({
+  const { loaded, currentText, isDecoding } = useDecode({
     filterFreq,
     filterWidth,
     gain,
+    stream,
   });
 
-  useEffect(() => {
-    const getAudioDevices = async () => {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioInputs = devices.filter(
-        (device) => device.kind === "audioinput"
-      );
-      setAudioInputDevices(audioInputs);
+  const setSelectedAudioInput = (deviceId: string) => {
+    _setSelectedAudioInput(deviceId);
+    getStream(deviceId);
+  };
 
-      if (audioInputs.length > 0 && !selectedAudioInput) {
-        setSelectedAudioInput(audioInputs[0].deviceId);
-      }
-    };
-
-    getAudioDevices();
-    navigator.mediaDevices.addEventListener("devicechange", getAudioDevices);
-
-    return () => {
-      navigator.mediaDevices.removeEventListener(
-        "devicechange",
-        getAudioDevices
-      );
-    };
-  }, []);
-
-  const getStream = async () => {
+  const getStream = async (selectedAudioInput?: string) => {
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
     }
 
-    const constraints = {
+    const newStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: selectedAudioInput
           ? { exact: selectedAudioInput }
@@ -69,16 +51,15 @@ export const Decoder = () => {
         autoGainControl: false,
         noiseSuppression: false,
       },
-    };
+    });
 
-    const newStream = await navigator.mediaDevices.getUserMedia(constraints);
     setStream(newStream);
+
     const devices = await navigator.mediaDevices.enumerateDevices();
     const audioInputs = devices.filter(
       (device) => device.kind === "audioinput"
     );
     setAudioInputDevices(audioInputs);
-    return newStream;
   };
 
   return (
@@ -86,20 +67,17 @@ export const Decoder = () => {
       <Flex justify="space-between" align="center">
         <Button
           w={200}
-          color="indigo"
-          onClick={_startDecoding}
-          disabled={!loaded || isDecoding}
-        >
-          {isDecoding ? "DECODING" : loaded ? "START" : "LOADING..."}
-        </Button>
-        <Button
-          color="red"
+          color={isDecoding ? "red" : "indigo"}
           onClick={() => {
-            location.reload();
+            if (isDecoding) {
+              setStream(null);
+            } else {
+              getStream(selectedAudioInput ?? undefined);
+            }
           }}
-          variant="outline"
+          disabled={!loaded}
         >
-          RESET
+          {isDecoding ? "STOP" : loaded ? "START" : "LOADING..."}
         </Button>
       </Flex>
 
@@ -166,7 +144,7 @@ export const Decoder = () => {
           }))}
           value={selectedAudioInput}
           onChange={(event) => setSelectedAudioInput(event.currentTarget.value)}
-          disabled={isDecoding}
+          disabled={!stream}
         />
         <NativeSelect
           label="GAIN"
@@ -174,7 +152,6 @@ export const Decoder = () => {
           value={gain.toString()}
           onChange={(event) => setGain(Number(event.currentTarget.value))}
           rightSection={"dB"}
-          disabled={isDecoding}
         />
         <NativeSelect
           label="FIL WID"
