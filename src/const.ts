@@ -1,7 +1,5 @@
 const VOCABULARY = [
   "[UNK]",
-  ",", // delete
-  ".", // delete
   "/",
   "0",
   "1",
@@ -45,9 +43,7 @@ const VOCABULARY = [
   "",
   "",
   "",
-  "", // delete
-  "", // delete
-// '',
+  "",
   " ",
 ];
 
@@ -57,9 +53,7 @@ export const ABBREVIATION = {
   "": "HH",
   "": "KN",
   "": "SK",
-  "": "ﾎﾚ", // delete
-  "": "ﾗﾀ", // delete
-//  "": "BK",
+  "": "BK",
 };
 
 export const NumToChar = Object.fromEntries(
