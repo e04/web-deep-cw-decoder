@@ -1,6 +1,6 @@
 # web-deep-cw-decoder
 
-<img width="795" height="445" alt="スクリーンショット 2025-08-24 2 19 55" src="https://github.com/user-attachments/assets/ee47f3ed-9bd0-4fc3-b1dc-0e4c0ad37b8d" />
+<img width="825" height="514" alt="web-deep-cw" src="https://github.com/user-attachments/assets/a224be0a-a685-4dd8-be99-d0f376a43aa2" />
 
 This is a web-based, real-time Morse code (CW) decoder powered by a CRNN (Convolutional Recurrent Neural Network) model with a CTC Loss function.
 

@@ -91,15 +91,18 @@ function applyBandpassFilter(
   return output;
 }
 
-const initAudioProcessing = (stream: MediaStream) => {
+const initAudioProcessing = (stream: MediaStream, gain: number) => {
   if (audioContext) {
     return;
   }
   audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
   const source = audioContext.createMediaStreamSource(stream);
+  const gainNode = audioContext.createGain();
+  gainNode.gain.value = Math.pow(10, gain / 20);
+  source.connect(gainNode);
   scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
   scriptProcessor.onaudioprocess = audioCallback;
-  source.connect(scriptProcessor);
+  gainNode.connect(scriptProcessor);
   scriptProcessor.connect(audioContext.destination);
 };
 
@@ -170,10 +173,7 @@ async function runInference(
   setCurrentText(currentText);
 }
 
-function decodePredictions(
-  pred: Tensor["data"],
-  predShape: Tensor["dims"]
-) {
+function decodePredictions(pred: Tensor["data"], predShape: Tensor["dims"]) {
   const [batchSize, timeSteps, numClasses] = predShape;
   const outputText = [];
 
@@ -223,9 +223,11 @@ function decodePredictions(
 export const useDecode = ({
   filterFreq,
   filterWidth,
+  gain,
 }: {
   filterFreq: number | null;
   filterWidth: number;
+  gain: number;
 }) => {
   const [loaded, setLoaded] = useState(false);
   const [currentText, setCurrentText] = useState(" ");
@@ -249,7 +251,7 @@ export const useDecode = ({
     let inferenceIntervalId: NodeJS.Timeout | null = null;
 
     if (isDecoding && streamRef.current) {
-      initAudioProcessing(streamRef.current);
+      initAudioProcessing(streamRef.current, gain);
 
       inferenceIntervalId = setInterval(() => {
         const { filterFreq, filterWidth } = filterParamsRef.current;
@@ -271,7 +273,7 @@ export const useDecode = ({
         });
       }
     };
-  }, [isDecoding]);
+  }, [isDecoding, gain]);
 
   const startDecoding = (stream: MediaStream) => {
     if (!loaded) {

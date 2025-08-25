@@ -48,6 +48,7 @@ type ScopeProps = {
   setFilterFreq: (freq: number | null) => void;
   filterFreq: number | null;
   filterWidth: number;
+  gain: number;
 };
 
 export const Scope = ({
@@ -55,6 +56,7 @@ export const Scope = ({
   setFilterFreq,
   filterFreq,
   filterWidth,
+  gain,
 }: ScopeProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -77,12 +79,15 @@ export const Scope = ({
 
     const audioCtx: AudioContext = new AudioContext();
     const source = audioCtx.createMediaStreamSource(stream);
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.value = Math.pow(10, gain / 20);
+    source.connect(gainNode);
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2 ** 12;
     analyser.smoothingTimeConstant = 0;
     analyser.minDecibels = -70;
     analyser.maxDecibels = -30;
-    source.connect(analyser);
+    gainNode.connect(analyser);
 
     nodesRef.current = { audioCtx, source, analyser };
 
@@ -244,7 +249,7 @@ export const Scope = ({
         ref={canvasRef}
         style={{
           display: "block",
-          background: "var(--mantine-color-black)",
+          background: "var(--mantine-color-dark-9)",
           width: "100%",
           height: "256px",
           borderRadius: "4px",
