@@ -8,12 +8,12 @@ function App() {
         <Flex align="center" justify="space-between">
           <Text size="xl" fw={700}>
             web-deep-cw-decoder{" "}
-            <Text size="xs" c="dimmed">
-              AI-based Morse Decoder
+            <Text component="span" size="xs" c="dimmed">
+              An AI-based Morse Decoder
             </Text>
           </Text>
           <Text size="xs" c="dimmed">
-            v0.0.3
+            v0.0.4
           </Text>
         </Flex>
         <Decoder />
