@@ -1,4 +1,4 @@
-import { useState } from "react"; // useEffectをインポート
+import { useState } from "react";
 import { SAMPLE_RATE } from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
