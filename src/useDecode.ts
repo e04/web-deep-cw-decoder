@@ -92,9 +92,6 @@ function applyBandpassFilter(
 }
 
 const initAudioProcessing = (stream: MediaStream, gain: number) => {
-  if (audioContext) {
-    return;
-  }
   audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
   const source = audioContext.createMediaStreamSource(stream);
   const gainNode = audioContext.createGain();
@@ -224,17 +221,19 @@ export const useDecode = ({
   filterFreq,
   filterWidth,
   gain,
+  stream,
 }: {
   filterFreq: number | null;
   filterWidth: number;
   gain: number;
+  stream: MediaStream | null;
 }) => {
   const [loaded, setLoaded] = useState(false);
   const [currentText, setCurrentText] = useState(" ");
   const [isDecoding, setIsDecoding] = useState(false);
 
-  const streamRef = useRef<MediaStream | null>(null);
   const filterParamsRef = useRef({ filterFreq, filterWidth });
+  const inferenceIntervalId = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -248,50 +247,36 @@ export const useDecode = ({
   }, [filterFreq, filterWidth]);
 
   useEffect(() => {
-    let inferenceIntervalId: NodeJS.Timeout | null = null;
-
-    if (isDecoding && streamRef.current) {
-      initAudioProcessing(streamRef.current, gain);
-
-      inferenceIntervalId = setInterval(() => {
-        const { filterFreq, filterWidth } = filterParamsRef.current;
-        runInference(setCurrentText, filterFreq, filterWidth);
-      }, INFERENCE_INTERVAL_S * 1000);
+    if (!stream) {
+      return;
+    }
+    if (!loaded) {
+      return;
     }
 
+    initAudioProcessing(stream, gain);
+    inferenceIntervalId.current = setInterval(() => {
+      const { filterFreq, filterWidth } = filterParamsRef.current;
+      runInference(setCurrentText, filterFreq, filterWidth);
+    }, INFERENCE_INTERVAL_S * 1000);
+
+    setIsDecoding(true);
+
     return () => {
-      if (inferenceIntervalId) {
-        clearInterval(inferenceIntervalId);
+      setIsDecoding(false);
+
+      if (inferenceIntervalId.current) {
+        clearInterval(inferenceIntervalId.current);
       }
       if (audioContext) {
         if (scriptProcessor) {
           scriptProcessor.disconnect();
           scriptProcessor = null;
         }
-        audioContext.close().then(() => {
-          audioContext = null;
-        });
+        audioContext.close();
       }
     };
-  }, [isDecoding, gain]);
+  }, [stream, gain, loaded]);
 
-  const startDecoding = (stream: MediaStream) => {
-    if (!loaded) {
-      console.error("モデルがまだロードされていません。");
-      return;
-    }
-    if (isDecoding) {
-      stopDecoding();
-    }
-    streamRef.current = stream;
-    setIsDecoding(true);
-  };
-
-  const stopDecoding = () => {
-    setIsDecoding(false);
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-  };
-
-  return { startDecoding, stopDecoding, loaded, currentText, isDecoding };
+  return { loaded, currentText, isDecoding };
 };

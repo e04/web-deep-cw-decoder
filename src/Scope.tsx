@@ -181,8 +181,6 @@ export const Scope = ({
 
       const ctx2d = canvas.getContext("2d");
       if (!ctx2d) return;
-      ctx2d.fillStyle = "#000";
-      ctx2d.fillRect(0, 0, canvas.width, canvas.height);
 
       renderStateRef.current.pixelAccumulator = 0;
     });
@@ -203,7 +201,7 @@ export const Scope = ({
         nodesRef.current = null;
       }
     };
-  }, [stream, setFilterFreq]);
+  }, [stream, setFilterFreq, gain]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
