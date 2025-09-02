@@ -14,9 +14,6 @@ function App() {
               v0.0.5
             </Text>
           </Flex>
-          <Text size="xs" c="dimmed">
-            An AI-based Morse Decoder
-          </Text>
         </Stack>
         <Decoder />
         <Flex justify="right">
