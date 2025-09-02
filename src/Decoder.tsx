@@ -2,15 +2,7 @@ import { useState } from "react";
 import { SAMPLE_RATE } from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
-import {
-  Box,
-  Button,
-  Flex,
-  Badge,
-  Stack,
-  NativeSelect,
-  Tooltip,
-} from "@mantine/core";
+import { Box, Button, Flex, Stack, NativeSelect, Tooltip } from "@mantine/core";
 
 export const Decoder = () => {
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -101,19 +93,6 @@ export const Decoder = () => {
             }}
           />
         )}
-        <Box pos="absolute" top={8} right={8}>
-          <Badge
-            color={
-              filterFreq
-                ? "var(--mantine-color-gray-1)"
-                : "var(--mantine-color-gray-6)"
-            }
-            size="md"
-            variant="outline"
-          >
-            {filterFreq ? `FIL CEN: ${filterFreq} Hz ` : "FIL OFF"}
-          </Badge>
-        </Box>
       </Box>
 
       <Box
@@ -155,7 +134,7 @@ export const Decoder = () => {
         />
         <NativeSelect
           label="FIL WID"
-          data={["50", "100", "250", "500"]}
+          data={["50", "150", "250"]}
           value={filterWidth.toString()}
           onChange={(event) =>
             setFilterWidth(Number(event.currentTarget.value))
