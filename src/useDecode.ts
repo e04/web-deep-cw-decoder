@@ -133,7 +133,17 @@ function audioToSpectrogram(
     return magnitudes;
   });
 
-  return magnitudeSpectrogram;
+
+  const nBins = FFT_LENGTH / 2 + 1;
+  const cutBins = Math.floor(nBins / 4);
+  const startBin = cutBins;
+  const endBin = nBins - cutBins;
+  
+  const croppedSpectrogram = magnitudeSpectrogram.map((frame) => {
+    return frame.slice(startBin, endBin);
+  });
+
+  return croppedSpectrogram;
 }
 
 async function runInference(

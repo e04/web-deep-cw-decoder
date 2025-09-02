@@ -43,6 +43,9 @@ function buildColorLUT(): Array<[number, number, number]> {
 const minFreqHz = 100;
 const maxFreqHz = 1500;
 
+const decodableMinFreqHz = 400;
+const decodableMaxFreqHz = 1200;
+
 type ScopeProps = {
   stream: MediaStream;
   setFilterFreq: (freq: number | null) => void;
@@ -217,7 +220,14 @@ export const Scope = ({
 
       const invY = canvasHeight - y;
       const frequencyRange = maxFreqHz - minFreqHz;
-      const frequency = minFreqHz + (invY / canvasHeight) * frequencyRange;
+      let frequency = minFreqHz + (invY / canvasHeight) * frequencyRange;
+      
+      const halfWidth = filterWidth / 2;
+      if (frequency - halfWidth < decodableMinFreqHz) {
+        frequency = decodableMinFreqHz + halfWidth;
+      } else if (frequency + halfWidth > decodableMaxFreqHz) {
+        frequency = decodableMaxFreqHz - halfWidth;
+      }
 
       setFilterFreq(Math.ceil(frequency));
     };
@@ -227,18 +237,22 @@ export const Scope = ({
     return () => {
       canvas.removeEventListener("click", handleCanvasClick);
     };
-  }, [filterFreq, setFilterFreq]);
+  }, [filterFreq, setFilterFreq, filterWidth]);
 
   let bandTopPercent = 0;
   let bandHeightPercent = 0;
-  if (filterFreq != null) {
-    const range = maxFreqHz - minFreqHz;
-    const half = filterWidth / 2;
-    const lower = Math.max(minFreqHz, filterFreq - half);
-    const upper = Math.min(maxFreqHz, filterFreq + half);
-    bandTopPercent = ((maxFreqHz - upper) / range) * 100;
-    bandHeightPercent = ((upper - lower) / range) * 100;
-  }
+
+  const isEnableFilter = filterFreq != null;
+
+  const _filterFreq = isEnableFilter ? filterFreq : 800;
+  const _filterWidth = isEnableFilter ? filterWidth : 800;
+
+  const range = maxFreqHz - minFreqHz;
+  const half = _filterWidth / 2;
+  const lower = Math.max(minFreqHz, _filterFreq - half);
+  const upper = Math.min(maxFreqHz, _filterFreq + half);
+  bandTopPercent = ((maxFreqHz - upper) / range) * 100;
+  bandHeightPercent = ((upper - lower) / range) * 100;
 
   return (
     <Box style={{ position: "relative", width: "100%" }}>
@@ -254,20 +268,18 @@ export const Scope = ({
           border: "1px solid var(--mantine-color-dark-4)",
         }}
       />
-      {filterFreq != null && (
-        <Box
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: `${bandTopPercent}%`,
-            height: `${bandHeightPercent}%`,
-            borderTop: "1px solid var(--mantine-color-red-7)",
-            borderBottom: "1px solid var(--mantine-color-red-7)",
-            pointerEvents: "none",
-          }}
-        />
-      )}
+      <Box
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: `${bandTopPercent}%`,
+          height: `${bandHeightPercent}%`,
+          borderTop: "1px solid var(--mantine-color-red-7)",
+          borderBottom: "1px solid var(--mantine-color-red-7)",
+          pointerEvents: "none",
+        }}
+      />
     </Box>
   );
 };
