@@ -134,7 +134,7 @@ export const Decoder = () => {
         />
         <NativeSelect
           label="FIL WID"
-          data={["50", "150", "250"]}
+          data={["100", "150", "250"]}
           value={filterWidth.toString()}
           onChange={(event) =>
             setFilterWidth(Number(event.currentTarget.value))
