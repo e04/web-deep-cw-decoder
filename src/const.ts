@@ -60,8 +60,8 @@ export const NumToChar = Object.fromEntries(
   VOCABULARY.map((char, i) => [i, char])
 );
 
-export const FFT_LENGTH = 256;
-export const HOP_LENGTH = 64;
+export const FFT_LENGTH = 64;
+export const HOP_LENGTH = 16;
 export const SAMPLE_RATE = 3200;
 export const BUFFER_DURATION_S = 8;
 export const INFERENCE_INTERVAL_S = 0.1;
