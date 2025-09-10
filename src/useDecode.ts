@@ -141,42 +141,7 @@ function audioToSpectrogram(
   const croppedSpectrogram = magnitudeSpectrogram.map((frame) => {
     return frame.slice(startBin, endBin);
   });
-
-  let sum = 0;
-  let count = 0;
-  for (const frame of croppedSpectrogram) {
-    for (const value of frame) {
-      sum += value;
-    }
-    count += frame.length;
-  }
-
-  if (count === 0) {
-    return croppedSpectrogram;
-  }
-
-  const mean = sum / count;
-
-  let sumSqDiff = 0;
-  for (const frame of croppedSpectrogram) {
-    for (const value of frame) {
-      sumSqDiff += Math.pow(value - mean, 2);
-    }
-  }
-
-  const std = Math.sqrt(sumSqDiff / count);
-
-  const epsilon = 1e-7;
-
-  const normalizedSpectrogram = croppedSpectrogram.map((frame) => {
-    const newFrame = new Float32Array(frame.length);
-    for (let i = 0; i < frame.length; i++) {
-      newFrame[i] = (frame[i] - mean) / (std + epsilon);
-    }
-    return newFrame;
-  });
-
-  return normalizedSpectrogram;
+  return croppedSpectrogram
 }
 
 async function runInference(
