@@ -61,8 +61,8 @@ export const NumToChar = Object.fromEntries(
 );
 
 export const FFT_LENGTH = 64;
-export const HOP_LENGTH = 16;
+export const HOP_LENGTH = 32;
 export const SAMPLE_RATE = 3200;
-export const BUFFER_DURATION_S = 8;
+export const BUFFER_DURATION_S = 12;
 export const INFERENCE_INTERVAL_S = 0.1;
 export const BUFFER_SAMPLES = BUFFER_DURATION_S * SAMPLE_RATE;
