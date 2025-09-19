@@ -239,6 +239,40 @@ export const Scope = ({
     };
   }, [filterFreq, setFilterFreq, filterWidth]);
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+
+      if (!filterFreq) return;
+
+      let current = filterFreq ?? 800;
+
+      const step = 20;
+
+      if (e.deltaY < 0) {
+        current += step; 
+      } else if (e.deltaY > 0) {
+        current -= step;
+      }
+
+      const halfWidth = filterWidth / 2;
+      if (current - halfWidth < decodableMinFreqHz) {
+        current = decodableMinFreqHz + halfWidth;
+      }
+      if (current + halfWidth > decodableMaxFreqHz) {
+        current = decodableMaxFreqHz - halfWidth;
+      }
+
+      setFilterFreq(Math.round(current));
+    };
+
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", handleWheel);
+  }, [filterFreq, setFilterFreq, filterWidth]);
+
   let bandTopPercent = 0;
   let bandHeightPercent = 0;
 
