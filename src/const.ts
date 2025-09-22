@@ -44,6 +44,7 @@ const VOCABULARY = [
   "",
   "",
   "",
+  "",
   " ",
 ];
 
@@ -54,6 +55,7 @@ export const ABBREVIATION = {
   "": "KN",
   "": "SK",
   "": "BK",
+  "": "UR",
 };
 
 export const NumToChar = Object.fromEntries(
