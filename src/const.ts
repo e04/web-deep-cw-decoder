@@ -68,3 +68,11 @@ export const SAMPLE_RATE = 3200;
 export const BUFFER_DURATION_S = 12;
 export const INFERENCE_INTERVAL_S = 0.25;
 export const BUFFER_SAMPLES = BUFFER_DURATION_S * SAMPLE_RATE;
+
+// スペクトログラム表示の周波数範囲
+export const MIN_FREQ_HZ = 100;
+export const MAX_FREQ_HZ = 1500;
+
+// デコード可能な周波数範囲
+export const DECODABLE_MIN_FREQ_HZ = 400;
+export const DECODABLE_MAX_FREQ_HZ = 1200;
