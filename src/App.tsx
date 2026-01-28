@@ -11,14 +11,14 @@ function App() {
               web-deep-cw-decoder
             </Text>
             <Text size="xs" c="dimmed">
-              v0.0.7
+              v0.1.0
             </Text>
           </Flex>
         </Stack>
         <Decoder />
         <Flex justify="right">
           <Text component="a" c="dimmed" href="https://github.com/e04/">
-            Copyright © 2025 e04
+            Copyright © 2026 e04
           </Text>
         </Flex>
       </Stack>

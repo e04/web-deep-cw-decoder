@@ -1,48 +1,125 @@
-import type { InferenceSession } from "onnxruntime-web";
-import { audioToSpectrogram } from "./spectrogramUtils";
-import { decodePredictions } from "./textDecoder";
-// @ts-expect-error - ONNX model import
-import model from "../model.onnx";
+type WorkerRequest =
+  | { id: number; type: "loadModel" }
+  | {
+      id: number;
+      type: "runInference";
+      audioBuffer: Float32Array;
+      filterFreq: number | null;
+      filterWidth: number;
+    };
 
-let ortSession: InferenceSession | null = null;
+type WorkerResponse =
+  | { id: number; type: "modelLoaded" }
+  | { id: number; type: "inferenceResult"; text: string }
+  | { id: number; type: "error"; error: string };
+
+let inferenceWorker: Worker | null = null;
+let nextRequestId = 1;
+let modelLoadPromise: Promise<void> | null = null;
+const pendingRequests = new Map<
+  number,
+  {
+    resolve: (response: WorkerResponse) => void;
+    reject: (error: Error) => void;
+  }
+>();
+
+function getWorker(): Worker {
+  if (inferenceWorker) return inferenceWorker;
+
+  inferenceWorker = new Worker(
+    new URL("../workers/inferenceWorker.ts", import.meta.url),
+    { type: "module" },
+  );
+
+  inferenceWorker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+    const message = event.data;
+    const pending = pendingRequests.get(message.id);
+    if (!pending) return;
+
+    pendingRequests.delete(message.id);
+
+    if (message.type === "error") {
+      pending.reject(new Error(message.error));
+      return;
+    }
+
+    pending.resolve(message);
+  };
+
+  inferenceWorker.onerror = (event: ErrorEvent) => {
+    pendingRequests.forEach(({ reject }) => {
+      reject(new Error(event.message));
+    });
+    pendingRequests.clear();
+  };
+
+  return inferenceWorker;
+}
+
+function sendMessage(
+  request: Omit<WorkerRequest, "id">,
+  transfer?: Transferable[],
+): Promise<WorkerResponse> {
+  const worker = getWorker();
+  const requestId = nextRequestId++;
+  const message = { ...request, id: requestId } as WorkerRequest;
+
+  return new Promise<WorkerResponse>((resolve, reject) => {
+    pendingRequests.set(requestId, { resolve, reject });
+    worker.postMessage(message, transfer ?? []);
+  });
+}
 
 export async function loadModel(): Promise<void> {
-  if (ortSession) return;
-  ortSession = await ort.InferenceSession.create(model, {
-    executionProviders: ["wasm"],
-  });
+  if (modelLoadPromise) return modelLoadPromise;
+
+  modelLoadPromise = sendMessage({ type: "loadModel" })
+    .then((response) => {
+      if (response.type === "modelLoaded") return;
+      if (response.type === "error") throw new Error(response.error);
+      throw new Error("Unexpected worker response while loading model.");
+    })
+    .catch((error) => {
+      modelLoadPromise = null;
+      throw error;
+    });
+
+  return modelLoadPromise;
 }
 
 export async function runInference(
   audioBuffer: Float32Array,
   filterFreq: number | null,
-  filterWidth: number
+  filterWidth: number,
 ): Promise<string> {
-  if (!ortSession) return "";
-
-  const spectrogram = audioToSpectrogram(audioBuffer, filterFreq, filterWidth);
-  const timeSteps = spectrogram.length;
-  if (timeSteps === 0) return "";
-
-  const freqBins = spectrogram[0].length;
-
-  const flattenedSpectrogram = new Float32Array(timeSteps * freqBins);
-  for (let t = 0; t < timeSteps; t++) {
-    flattenedSpectrogram.set(spectrogram[t], t * freqBins);
+  try {
+    await loadModel();
+  } catch (error) {
+    console.error("Failed to load inference model", error);
+    return "";
   }
 
-  const dims = [1, timeSteps, freqBins, 1];
-  const inputTensor = new ort.Tensor("float32", flattenedSpectrogram, dims);
+  const audioCopy = audioBuffer.slice();
 
-  const inputName = ortSession.inputNames[0];
-  const feeds = { [inputName]: inputTensor };
-  const results = await ortSession.run(feeds);
-  const outputTensor = results[ortSession.outputNames[0]];
+  try {
+    const response = await sendMessage(
+      {
+        type: "runInference",
+        audioBuffer: audioCopy,
+        filterFreq,
+        filterWidth,
+      } as Omit<WorkerRequest, "id">,
+      [audioCopy.buffer],
+    );
 
-  const decodedTextList = decodePredictions(
-    outputTensor.data,
-    outputTensor.dims
-  );
+    if (response.type === "inferenceResult") {
+      return response.text;
+    }
 
-  return decodedTextList.length > 0 ? decodedTextList[0] : "";
+    return "";
+  } catch (error) {
+    console.error("Inference worker error", error);
+    return "";
+  }
 }
