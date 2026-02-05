@@ -2,12 +2,14 @@ import { useEffect, useState, useRef } from "react";
 import { INFERENCE_INTERVAL_S } from "./const";
 import { loadModel, runInference } from "./utils/inference";
 import { useAudioProcessing } from "./hooks/useAudioProcessing";
+import type { TextSegment } from "./utils/textDecoder";
 
 type UseDecodeParams = {
   filterFreq: number | null;
   filterWidth: number;
   gain: number;
   stream: MediaStream | null;
+  language: "EN" | "EN/JA";
 };
 
 /**
@@ -18,24 +20,34 @@ export const useDecode = ({
   filterWidth,
   gain,
   stream,
+  language,
 }: UseDecodeParams) => {
   const [loaded, setLoaded] = useState(false);
-  const [currentText, setCurrentText] = useState(" ");
+  const [loadedJa, setLoadedJa] = useState(false);
+  const [currentSegments, setCurrentSegments] = useState<TextSegment[]>([]);
+  const [currentSegmentsJa, setCurrentSegmentsJa] = useState<TextSegment[]>([]);
   const [isDecoding, setIsDecoding] = useState(false);
 
   const filterParamsRef = useRef({ filterFreq, filterWidth });
   const inferenceIntervalId = useRef<NodeJS.Timeout | null>(null);
 
-  // オーディオ処理
   const audioBufferRef = useAudioProcessing(stream, gain);
 
-  // モデルのロード
   useEffect(() => {
     (async () => {
-      await loadModel();
+      await loadModel("en");
       setLoaded(true);
     })();
   }, []);
+
+  useEffect(() => {
+    if (language === "EN/JA" && !loadedJa) {
+      (async () => {
+        await loadModel("ja");
+        setLoadedJa(true);
+      })();
+    }
+  }, [language, loadedJa]);
 
   // フィルターパラメータの更新
   useEffect(() => {
@@ -48,15 +60,26 @@ export const useDecode = ({
       return;
     }
 
-    // 定期的に推論を実行
     inferenceIntervalId.current = setInterval(async () => {
       const { filterFreq, filterWidth } = filterParamsRef.current;
-      const text = await runInference(
+      
+      const segmentsEn = await runInference(
         audioBufferRef.current,
         filterFreq,
-        filterWidth
+        filterWidth,
+        "en"
       );
-      setCurrentText(text);
+      setCurrentSegments(segmentsEn);
+      
+      if (language === "EN/JA" && loadedJa) {
+        const segmentsJa = await runInference(
+          audioBufferRef.current,
+          filterFreq,
+          filterWidth,
+          "ja"
+        );
+        setCurrentSegmentsJa(segmentsJa);
+      }
     }, INFERENCE_INTERVAL_S * 1000);
 
     setIsDecoding(true);
@@ -67,7 +90,7 @@ export const useDecode = ({
         clearInterval(inferenceIntervalId.current);
       }
     };
-  }, [stream, loaded, audioBufferRef]);
+  }, [stream, loaded, loadedJa, language, audioBufferRef]);
 
-  return { loaded, currentText, isDecoding };
+  return { loaded, loadedJa, currentSegments, currentSegmentsJa, isDecoding };
 };
