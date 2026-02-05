@@ -18,7 +18,7 @@ export const Decoder = () => {
   );
   const [selectedAudioInput, _setSelectedAudioInput] = useState<string>("");
 
-  const { loaded, currentSegments, currentSegmentsJa, isDecoding } = useDecode({
+  const { loaded, loadedJa, currentSegments, currentSegmentsJa, isDecoding } = useDecode({
     filterFreq,
     filterWidth,
     gain,
@@ -58,23 +58,31 @@ export const Decoder = () => {
     setAudioInputDevices(audioInputs);
   };
 
+  const isLoading = !loaded || (language === "EN/JA" && !loadedJa);
+
   return (
     <Stack gap={4}>
       <Flex justify="space-between" align="center">
-        <Button
-          w={200}
-          color={isDecoding ? "red" : "indigo"}
-          onClick={() => {
-            if (isDecoding) {
-              setStream(null);
-            } else {
-              getStream(selectedAudioInput ?? undefined);
-            }
-          }}
-          disabled={!loaded}
-        >
-          {isDecoding ? "STOP" : loaded ? "START" : "LOADING..."}
-        </Button>
+        <Flex align="center" gap="sm">
+          <Button
+            w={200}
+            color={isDecoding ? "red" : "indigo"}
+            onClick={() => {
+              if (isDecoding) {
+                setStream(null);
+              } else {
+                getStream(selectedAudioInput ?? undefined);
+              }
+            }}
+          >
+            {isDecoding ? "STOP" : "START"}
+          </Button>
+          {isLoading && (
+            <Box style={{ color: "var(--mantine-color-gray-5)", fontSize: "14px" }}>
+              LOADING...
+            </Box>
+          )}
+        </Flex>
       </Flex>
 
       <Box pos="relative">
