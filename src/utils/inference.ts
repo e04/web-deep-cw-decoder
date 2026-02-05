@@ -1,8 +1,13 @@
+import type { TextSegment } from "./textDecoder";
+
+type Lang = "en" | "ja";
+
 type WorkerRequest =
-  | { id: number; type: "loadModel" }
+  | { id: number; type: "loadModel"; lang: Lang }
   | {
       id: number;
       type: "runInference";
+      lang: Lang;
       audioBuffer: Float32Array;
       filterFreq: number | null;
       filterWidth: number;
@@ -10,12 +15,15 @@ type WorkerRequest =
 
 type WorkerResponse =
   | { id: number; type: "modelLoaded" }
-  | { id: number; type: "inferenceResult"; text: string }
+  | { id: number; type: "inferenceResult"; segments: TextSegment[] }
   | { id: number; type: "error"; error: string };
 
 let inferenceWorker: Worker | null = null;
 let nextRequestId = 1;
-let modelLoadPromise: Promise<void> | null = null;
+const modelLoadPromises: Record<Lang, Promise<void> | null> = {
+  en: null,
+  ja: null,
+};
 const pendingRequests = new Map<
   number,
   {
@@ -71,33 +79,36 @@ function sendMessage(
   });
 }
 
-export async function loadModel(): Promise<void> {
-  if (modelLoadPromise) return modelLoadPromise;
+export async function loadModel(lang: Lang = "en"): Promise<void> {
+  if (modelLoadPromises[lang]) return modelLoadPromises[lang]!;
 
-  modelLoadPromise = sendMessage({ type: "loadModel" })
+  const promise = sendMessage({ type: "loadModel", lang })
     .then((response) => {
       if (response.type === "modelLoaded") return;
       if (response.type === "error") throw new Error(response.error);
       throw new Error("Unexpected worker response while loading model.");
     })
     .catch((error) => {
-      modelLoadPromise = null;
+      modelLoadPromises[lang] = null;
       throw error;
     });
 
-  return modelLoadPromise;
+  modelLoadPromises[lang] = promise;
+
+  return promise;
 }
 
 export async function runInference(
   audioBuffer: Float32Array,
   filterFreq: number | null,
   filterWidth: number,
-): Promise<string> {
+  lang: Lang = "en",
+): Promise<TextSegment[]> {
   try {
-    await loadModel();
+    await loadModel(lang);
   } catch (error) {
     console.error("Failed to load inference model", error);
-    return "";
+    return [];
   }
 
   const audioCopy = audioBuffer.slice();
@@ -106,6 +117,7 @@ export async function runInference(
     const response = await sendMessage(
       {
         type: "runInference",
+        lang,
         audioBuffer: audioCopy,
         filterFreq,
         filterWidth,
@@ -114,12 +126,12 @@ export async function runInference(
     );
 
     if (response.type === "inferenceResult") {
-      return response.text;
+      return response.segments;
     }
 
-    return "";
+    return [];
   } catch (error) {
     console.error("Inference worker error", error);
-    return "";
+    return [];
   }
 }
