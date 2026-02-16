@@ -21,6 +21,3 @@ The neural network model has been trained on an extensive dataset of 50 hours of
 Open this page:
 
 https://e04.github.io/web-deep-cw-decoder/dist/index.html
-
-> [!NOTE]
-> Currently, due to [a bug in iOS 26.2](https://github.com/microsoft/onnxruntime/issues/26827), this does not function correctly on iPhone/iPad. Please wait for Apple to fix Safari.
