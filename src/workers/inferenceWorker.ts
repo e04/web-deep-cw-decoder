@@ -37,7 +37,7 @@ async function ensureSession(lang: Lang): Promise<ort.InferenceSession> {
   if (sessions[lang]) return sessions[lang]!;
   // Fetch ORT assets from the CDN to avoid module fetch failures in the worker.
   ort.env.wasm.wasmPaths =
-    "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/";
+    "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.0/dist/";
   sessions[lang] = await ort.InferenceSession.create(MODEL_URLS[lang], {
     executionProviders: ["wasm"],
   });
