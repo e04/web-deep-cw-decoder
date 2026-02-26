@@ -1,5 +1,5 @@
 export const ENGLISH_CONFIG = {
-  MODEL_FILE: "model.onnx",
+  MODEL_FILE: "model_en.onnx",
   VOCABULARY: [
     "[UNK]",
     "/",
