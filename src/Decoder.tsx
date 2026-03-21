@@ -194,14 +194,14 @@ export const Decoder = () => {
           }
           rightSection={"Hz"}
         />
-        <NativeSelect
+        {/* <NativeSelect
           label="CW LANG"
           data={["EN", "EN/JA"]}
           value={language}
           onChange={(event) =>
             setLanguage(event.currentTarget.value as "EN" | "EN/JA")
           }
-        />
+        /> */}
       </Flex>
     </Stack>
   );
