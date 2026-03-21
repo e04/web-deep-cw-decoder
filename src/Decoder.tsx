@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { SAMPLE_RATE } from "./const";
+import { DEFAULT_DECODE_BANDWIDTH_HZ, SAMPLE_RATE } from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
-import { Box, Button, Flex, Stack, NativeSelect } from "@mantine/core";
+import { Box, Button, Flex, Stack, NativeSelect, Tooltip } from "@mantine/core";
 
 const ABBREVIATION_COLOR = "var(--mantine-color-yellow-6)"; // Yellow color for abbreviations
 
@@ -60,6 +60,10 @@ export const Decoder = () => {
   };
 
   const isLoading = !loaded || (language === "EN/JA" && !loadedJa);
+  const isFilterEnabled = filterFreq !== null;
+  const activeFilterWidth = isFilterEnabled
+    ? filterWidth
+    : DEFAULT_DECODE_BANDWIDTH_HZ;
 
   return (
     <Stack gap={4}>
@@ -167,18 +171,22 @@ export const Decoder = () => {
       </Stack>
 
       <Flex gap="md" justify="flex-end" wrap="wrap">
-        <NativeSelect
-          w={200}
-          label="INPUT"
-          data={audioInputDevices.map((device) => ({
-            value: device.deviceId,
-            label:
-              device.label || `Device ${audioInputDevices.indexOf(device) + 1}`,
-          }))}
-          value={selectedAudioInput}
-          onChange={(event) => setSelectedAudioInput(event.currentTarget.value)}
-          disabled={!stream}
-        />
+        <Tooltip label="Available after starting the decoder." withArrow>
+          <Box>
+            <NativeSelect
+              w={200}
+              label="INPUT"
+              data={audioInputDevices.map((device) => ({
+                value: device.deviceId,
+                label:
+                  device.label || `Device ${audioInputDevices.indexOf(device) + 1}`,
+              }))}
+              value={selectedAudioInput}
+              onChange={(event) => setSelectedAudioInput(event.currentTarget.value)}
+              disabled={!stream}
+            />
+          </Box>
+        </Tooltip>
         <NativeSelect
           label="GAIN"
           data={["0", "20"]}
@@ -186,15 +194,34 @@ export const Decoder = () => {
           onChange={(event) => setGain(Number(event.currentTarget.value))}
           rightSection={"dB"}
         />
-        <NativeSelect
-          label="FIL WID"
-          data={["100", "150", "250"]}
-          value={filterWidth.toString()}
-          onChange={(event) =>
-            setFilterWidth(Number(event.currentTarget.value))
-          }
-          rightSection={"Hz"}
-        />
+        <Tooltip label="Click the scope to enable the filter." withArrow>
+          <Box>
+            <NativeSelect
+              label="FIL WID"
+              data={[
+                {
+                  value: DEFAULT_DECODE_BANDWIDTH_HZ.toString(),
+                  label: `${DEFAULT_DECODE_BANDWIDTH_HZ} (OFF)`,
+                },
+                { value: "100", label: "100" },
+                { value: "150", label: "150" },
+                { value: "250", label: "250" },
+              ]}
+              value={activeFilterWidth.toString()}
+              onChange={(event) => {
+                const nextWidth = Number(event.currentTarget.value);
+                if (nextWidth === DEFAULT_DECODE_BANDWIDTH_HZ) {
+                  setFilterFreq(null);
+                  return;
+                }
+
+                setFilterWidth(nextWidth);
+              }}
+              disabled={!isFilterEnabled}
+              rightSection={"Hz"}
+            />
+          </Box>
+        </Tooltip>
         {/* <NativeSelect
           label="CW LANG"
           data={["EN", "EN/JA"]}

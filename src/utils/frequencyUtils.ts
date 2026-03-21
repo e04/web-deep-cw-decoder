@@ -1,4 +1,8 @@
-import { MIN_FREQ_HZ, MAX_FREQ_HZ } from "../const";
+import {
+  MIN_FREQ_HZ,
+  MAX_FREQ_HZ,
+  DEFAULT_DECODE_BANDWIDTH_HZ,
+} from "../const";
 
 export const calculateBandPosition = (
   filterFreq: number | null,
@@ -6,7 +10,9 @@ export const calculateBandPosition = (
 ): { topPercent: number; heightPercent: number } => {
   const isEnableFilter = filterFreq != null;
   const _filterFreq = isEnableFilter ? filterFreq : 800;
-  const _filterWidth = isEnableFilter ? filterWidth : 800;
+  const _filterWidth = isEnableFilter
+    ? filterWidth
+    : DEFAULT_DECODE_BANDWIDTH_HZ;
 
   const range = MAX_FREQ_HZ - MIN_FREQ_HZ;
   const half = _filterWidth / 2;
