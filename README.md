@@ -8,7 +8,6 @@ A key feature of this application is its client-side processing architecture. By
 
 The neural network model has been trained on an extensive dataset of 50 hours of programmatically generated Morse code audio, enabling it to achieve high accuracy across various sending speeds and conditions.
 
-
 ## Features
 
 - **Real-time Morse code decoding** using machine learning
@@ -20,4 +19,8 @@ The neural network model has been trained on an extensive dataset of 50 hours of
 
 Open this page:
 
-https://e04.github.io/web-deep-cw-decoder/dist/index.html
+[https://e04.github.io/web-deep-cw-decoder/](https://e04.github.io/web-deep-cw-decoder/)
+
+Legacy URL redirects to the current page:
+
+[https://e04.github.io/web-deep-cw-decoder/dist/index.html](https://e04.github.io/web-deep-cw-decoder/dist/index.html)

@@ -11,7 +11,8 @@ export const Decoder = () => {
   const [filterFreq, setFilterFreq] = useState<number | null>(null);
   const [filterWidth, setFilterWidth] = useState<number>(250);
   const [gain, setGain] = useState<number>(0);
-  const [language, setLanguage] = useState<"EN" | "EN/JA">("EN");
+  // const [language, setLanguage] = useState<"EN" | "EN/JA">("EN");
+  const [language] = useState<"EN" | "EN/JA">("EN");
 
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>(
     [],
