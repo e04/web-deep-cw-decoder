@@ -1,7 +1,24 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, type MutableRefObject } from "react";
 import { loadModel, runInference } from "./utils/inference";
 import { useAudioProcessing } from "./hooks/useAudioProcessing";
 import type { TextSegment } from "./utils/textDecoder";
+
+const waitForNextAudioChunk = (
+  audioBufferRef: MutableRefObject<{ version: number }>,
+  currentVersion: number,
+  isCancelled: () => boolean,
+): Promise<void> =>
+  new Promise((resolve) => {
+    const pollForAudio = () => {
+      if (isCancelled() || audioBufferRef.current.version !== currentVersion) {
+        resolve();
+        return;
+      }
+      window.setTimeout(pollForAudio, 10);
+    };
+
+    pollForAudio();
+  });
 
 type UseDecodeParams = {
   filterFreq: number | null;
@@ -58,13 +75,28 @@ export const useDecode = ({
     }
 
     let cancelled = false;
+    let lastAudioVersion = -1;
 
     const decodeContinuously = async () => {
       while (!cancelled) {
+        const audioVersion = audioBufferRef.current.version;
+        if (audioVersion === lastAudioVersion) {
+          await waitForNextAudioChunk(
+            audioBufferRef,
+            audioVersion,
+            () => cancelled,
+          );
+          if (cancelled) {
+            return;
+          }
+          continue;
+        }
+
+        lastAudioVersion = audioVersion;
         const { filterFreq, filterWidth } = filterParamsRef.current;
 
         const segmentsEn = await runInference(
-          audioBufferRef.current,
+          audioBufferRef.current.samples,
           filterFreq,
           filterWidth,
           "en"
@@ -76,7 +108,7 @@ export const useDecode = ({
 
         if (language === "EN/JA" && loadedJa) {
           const segmentsJa = await runInference(
-            audioBufferRef.current,
+            audioBufferRef.current.samples,
             filterFreq,
             filterWidth,
             "ja"

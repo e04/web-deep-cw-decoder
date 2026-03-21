@@ -2,36 +2,17 @@ import { STFT } from "../stft";
 import { FFT_LENGTH, HOP_LENGTH, SAMPLE_RATE } from "../const";
 import { applyBandpassFilter } from "./audioFilters";
 
-function computeMagnitudeSpectrogram(
-  complexSpectrogram: Float32Array[]
-): Float32Array[] {
-  return complexSpectrogram.map((complexFrame) => {
-    const magnitudes = new Float32Array(FFT_LENGTH / 2 + 1);
+const stft = new STFT(FFT_LENGTH, HOP_LENGTH);
+const TOTAL_BINS = FFT_LENGTH / 2 + 1;
+const START_BIN = Math.floor(TOTAL_BINS / 4);
+const END_BIN = TOTAL_BINS - START_BIN;
+const CROPPED_BINS = END_BIN - START_BIN;
 
-    for (let j = 0; j < magnitudes.length; j++) {
-      const real = complexFrame[j * 2];
-      const imag = complexFrame[j * 2 + 1];
-      magnitudes[j] = Math.sqrt(real * real + imag * imag);
-    }
-
-    return magnitudes;
-  });
-}
-
-function cropSpectrogram(spectrogram: Float32Array[]): Float32Array[] {
-  const nBins = FFT_LENGTH / 2 + 1;
-  const cutBins = Math.floor(nBins / 4);
-  const startBin = cutBins;
-  const endBin = nBins - cutBins;
-
-  return spectrogram.map((frame) => frame.slice(startBin, endBin));
-}
-
-export function audioToSpectrogram(
+export function audioToSpectrogramTensor(
   audio: Float32Array,
   filterFreq: number | null,
   filterWidth: number
-): Float32Array[] {
+): { data: Float32Array; dims: [number, number, number, 1] } | null {
   let processedAudio = audio;
   if (filterFreq !== null && filterWidth > 0) {
     processedAudio = applyBandpassFilter(
@@ -42,10 +23,25 @@ export function audioToSpectrogram(
     );
   }
 
-  const stft = new STFT(FFT_LENGTH, HOP_LENGTH);
-  const complexSpectrogram = stft.analyze(processedAudio);
+  const timeSteps = stft.getFrameCount(processedAudio.length);
+  if (timeSteps === 0) {
+    return null;
+  }
 
-  const magnitudeSpectrogram = computeMagnitudeSpectrogram(complexSpectrogram);
+  const flattenedSpectrogram = new Float32Array(timeSteps * CROPPED_BINS);
+  stft.forEachSpectrum(processedAudio, (complexFrame, frameIndex) => {
+    const offset = frameIndex * CROPPED_BINS;
+    for (let bin = START_BIN; bin < END_BIN; bin++) {
+      const real = complexFrame[bin * 2];
+      const imag = complexFrame[bin * 2 + 1];
+      flattenedSpectrogram[offset + bin - START_BIN] = Math.sqrt(
+        real * real + imag * imag,
+      );
+    }
+  });
 
-  return cropSpectrogram(magnitudeSpectrogram);
+  return {
+    data: flattenedSpectrogram,
+    dims: [1, timeSteps, CROPPED_BINS, 1],
+  };
 }

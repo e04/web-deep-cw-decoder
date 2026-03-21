@@ -1,24 +1,32 @@
 import { useEffect, useRef } from "react";
 import { SAMPLE_RATE, BUFFER_SAMPLES } from "../const";
 
+export type AudioBufferState = {
+  samples: Float32Array;
+  version: number;
+};
+
 function audioCallback(
   event: AudioProcessingEvent,
-  audioBuffer: Float32Array
+  audioBufferState: AudioBufferState
 ) {
   const chunk = event.inputBuffer.getChannelData(0);
   const chunkLen = chunk.length;
+  const { samples } = audioBufferState;
 
-  audioBuffer.copyWithin(0, chunkLen);
-  audioBuffer.set(chunk, BUFFER_SAMPLES - chunkLen);
+  samples.copyWithin(0, chunkLen);
+  samples.set(chunk, BUFFER_SAMPLES - chunkLen);
+  audioBufferState.version += 1;
 }
 
 export function useAudioProcessing(
   stream: MediaStream | null,
   gain: number
-): React.MutableRefObject<Float32Array> {
-  const audioBufferRef = useRef<Float32Array>(
-    new Float32Array(BUFFER_SAMPLES)
-  );
+): React.MutableRefObject<AudioBufferState> {
+  const audioBufferRef = useRef<AudioBufferState>({
+    samples: new Float32Array(BUFFER_SAMPLES),
+    version: 0,
+  });
   const audioContextRef = useRef<AudioContext | null>(null);
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
 

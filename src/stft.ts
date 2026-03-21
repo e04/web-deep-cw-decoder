@@ -81,6 +81,8 @@ export class STFT {
   public readonly hopSize: number;
   private fft: FFT;
   private window: Float32Array;
+  private frame: Float32Array;
+  private complexFrame: Float32Array;
 
   constructor(fftSize: number, hopSize: number) {
     if (fftSize <= 0) {
@@ -94,6 +96,8 @@ export class STFT {
     this.hopSize = hopSize;
     this.fft = new FFT(fftSize);
     this.window = this.generateHanningWindow();
+    this.frame = new Float32Array(this.fftSize);
+    this.complexFrame = new Float32Array(this.fftSize * 2);
   }
 
   private generateHanningWindow(): Float32Array {
@@ -104,29 +108,41 @@ export class STFT {
     return window;
   }
 
-  public analyze(signal: Float32Array): Float32Array[] {
-    const spectrogram: Float32Array[] = [];
-    const frame = new Float32Array(this.fftSize);
-    const complexFrame = new Float32Array(this.fftSize * 2);
+  public getFrameCount(signalLength: number): number {
+    if (signalLength < this.fftSize) {
+      return 0;
+    }
+    return Math.floor((signalLength - this.fftSize) / this.hopSize) + 1;
+  }
 
-    for (let i = 0; i + this.fftSize <= signal.length; i += this.hopSize) {
-      const signalSlice = signal.subarray(i, i + this.fftSize);
-      frame.set(signalSlice);
-
-      for (let j = 0; j < this.fftSize; j++) {
-        frame[j] *= this.window[j];
-      }
-
-      for (let j = 0; j < this.fftSize; j++) {
-        complexFrame[j * 2] = frame[j];
-        complexFrame[j * 2 + 1] = 0;
-      }
-
-      this.fft.transform(complexFrame);
-
-      spectrogram.push(complexFrame.slice());
+  public forEachSpectrum(
+    signal: Float32Array,
+    iteratee: (complexFrame: Float32Array, frameIndex: number) => void,
+  ): number {
+    const frameCount = this.getFrameCount(signal.length);
+    if (frameCount === 0) {
+      return 0;
     }
 
-    return spectrogram;
+    let frameIndex = 0;
+    for (let i = 0; i + this.fftSize <= signal.length; i += this.hopSize) {
+      const signalSlice = signal.subarray(i, i + this.fftSize);
+      this.frame.set(signalSlice);
+
+      for (let j = 0; j < this.fftSize; j++) {
+        this.frame[j] *= this.window[j];
+      }
+
+      for (let j = 0; j < this.fftSize; j++) {
+        this.complexFrame[j * 2] = this.frame[j];
+        this.complexFrame[j * 2 + 1] = 0;
+      }
+
+      this.fft.transform(this.complexFrame);
+      iteratee(this.complexFrame, frameIndex);
+      frameIndex += 1;
+    }
+
+    return frameIndex;
   }
 }

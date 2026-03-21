@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import * as ort from "onnxruntime-web";
-import { audioToSpectrogram } from "../utils/spectrogramUtils";
+import { audioToSpectrogramTensor } from "../utils/spectrogramUtils";
 import { decodePredictions, type TextSegment } from "../utils/textDecoder";
 import { ENGLISH_CONFIG, JAPANESE_CONFIG } from "../const";
 
@@ -52,18 +52,20 @@ async function handleRunInference(
 ): Promise<TextSegment[]> {
   const session = await ensureSession(lang);
 
-  const spectrogram = audioToSpectrogram(audioBuffer, filterFreq, filterWidth);
-  const timeSteps = spectrogram.length;
-  if (timeSteps === 0) return [];
-
-  const freqBins = spectrogram[0].length;
-  const flattenedSpectrogram = new Float32Array(timeSteps * freqBins);
-  for (let t = 0; t < timeSteps; t++) {
-    flattenedSpectrogram.set(spectrogram[t], t * freqBins);
+  const spectrogramInput = audioToSpectrogramTensor(
+    audioBuffer,
+    filterFreq,
+    filterWidth,
+  );
+  if (!spectrogramInput) {
+    return [];
   }
 
-  const dims = [1, timeSteps, freqBins, 1];
-  const inputTensor = new ort.Tensor("float32", flattenedSpectrogram, dims);
+  const inputTensor = new ort.Tensor(
+    "float32",
+    spectrogramInput.data,
+    spectrogramInput.dims,
+  );
 
   const inputName = session.inputNames[0];
   const feeds = { [inputName]: inputTensor };
