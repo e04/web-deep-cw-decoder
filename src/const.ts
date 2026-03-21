@@ -149,7 +149,6 @@ export const FFT_LENGTH = 256;
 export const HOP_LENGTH = 64;
 export const SAMPLE_RATE = 3200;
 export const BUFFER_DURATION_S = 12;
-export const INFERENCE_INTERVAL_S = 0.25;
 export const BUFFER_SAMPLES = BUFFER_DURATION_S * SAMPLE_RATE;
 
 export const MIN_FREQ_HZ = 100;

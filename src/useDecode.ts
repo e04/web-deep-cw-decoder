@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from "react";
-import { INFERENCE_INTERVAL_S } from "./const";
 import { loadModel, runInference } from "./utils/inference";
 import { useAudioProcessing } from "./hooks/useAudioProcessing";
 import type { TextSegment } from "./utils/textDecoder";
@@ -29,8 +28,6 @@ export const useDecode = ({
   const [isDecoding, setIsDecoding] = useState(false);
 
   const filterParamsRef = useRef({ filterFreq, filterWidth });
-  const inferenceIntervalId = useRef<NodeJS.Timeout | null>(null);
-
   const audioBufferRef = useAudioProcessing(stream, gain);
 
   useEffect(() => {
@@ -60,35 +57,44 @@ export const useDecode = ({
       return;
     }
 
-    inferenceIntervalId.current = setInterval(async () => {
-      const { filterFreq, filterWidth } = filterParamsRef.current;
-      
-      const segmentsEn = await runInference(
-        audioBufferRef.current,
-        filterFreq,
-        filterWidth,
-        "en"
-      );
-      setCurrentSegments(segmentsEn);
-      
-      if (language === "EN/JA" && loadedJa) {
-        const segmentsJa = await runInference(
+    let cancelled = false;
+
+    const decodeContinuously = async () => {
+      while (!cancelled) {
+        const { filterFreq, filterWidth } = filterParamsRef.current;
+
+        const segmentsEn = await runInference(
           audioBufferRef.current,
           filterFreq,
           filterWidth,
-          "ja"
+          "en"
         );
-        setCurrentSegmentsJa(segmentsJa);
+        if (cancelled) {
+          return;
+        }
+        setCurrentSegments(segmentsEn);
+
+        if (language === "EN/JA" && loadedJa) {
+          const segmentsJa = await runInference(
+            audioBufferRef.current,
+            filterFreq,
+            filterWidth,
+            "ja"
+          );
+          if (cancelled) {
+            return;
+          }
+          setCurrentSegmentsJa(segmentsJa);
+        }
       }
-    }, INFERENCE_INTERVAL_S * 1000);
+    };
 
     setIsDecoding(true);
+    void decodeContinuously();
 
     return () => {
+      cancelled = true;
       setIsDecoding(false);
-      if (inferenceIntervalId.current) {
-        clearInterval(inferenceIntervalId.current);
-      }
     };
   }, [stream, loaded, loadedJa, language, audioBufferRef]);
 
