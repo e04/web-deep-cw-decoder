@@ -40,8 +40,6 @@ export const Scope = ({
           background: "var(--mantine-color-dark-9)",
           width: "100%",
           height: "256px",
-          borderRadius: "4px",
-          border: "1px solid var(--mantine-color-dark-4)",
         }}
       />
       <Box

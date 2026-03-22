@@ -1,7 +1,7 @@
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import { Box } from "@mantine/core";
-import { SAMPLE_RATE, BUFFER_SAMPLES, FFT_LENGTH, HOP_LENGTH } from "../const";
-import type { TextSegment } from "../utils/textDecoder";
+import { SAMPLE_RATE, BUFFER_SAMPLES, FFT_LENGTH, HOP_LENGTH } from "./const";
+import type { TextSegment } from "./utils/textDecoder";
 
 // Default animation duration: audio chunk interval = 2048 samples / 3200 Hz
 const DEFAULT_SCROLL_DURATION_S = 2048 / SAMPLE_RATE; // 0.64s
@@ -21,43 +21,65 @@ export const DecodeDisplay = ({
   isDecoding,
   backgroundColor = "var(--mantine-color-dark-9)",
 }: DecodeDisplayProps) => {
+  const prevSegmentsRef = useRef(segments);
   const updateCount = useRef(0);
   const lastUpdateTime = useRef(0);
   const animDuration = useRef(DEFAULT_SCROLL_DURATION_S);
 
-  useEffect(() => {
+  // Update only when segments reference actually changes (not on unrelated re-renders)
+  if (segments !== prevSegmentsRef.current) {
+    prevSegmentsRef.current = segments;
     const now = performance.now();
     if (lastUpdateTime.current > 0) {
       animDuration.current = (now - lastUpdateTime.current) / 1000;
     }
     lastUpdateTime.current = now;
     updateCount.current += 1;
-  }, [segments]);
+  }
 
   return (
     <Box
       style={{
-        whiteSpace: "pre-wrap",
+        position: "relative",
         width: "100%",
-        overflow: "hidden",
-        fontSize: "20px",
-        backgroundColor,
-        borderRadius: "4px",
-        border: "1px solid var(--mantine-color-dark-4)",
         height: "32px",
+        fontSize: "20px",
+        borderTop: "1px solid var(--mantine-color-dark-8)",
       }}
     >
+      {/* Background layer – stays solid, unaffected by mask */}
       <div
-        key={updateCount.current}
         style={{
-          display: "flex",
-          justifyContent: "space-between",
+          position: "absolute",
+          inset: 0,
+          backgroundColor,
+        }}
+      />
+      {/* Text layer – faded at both edges */}
+      <div
+        style={{
+          position: "relative",
           width: "100%",
-          animation: isDecoding
-            ? `decode-scroll-left ${animDuration.current}s linear forwards`
-            : undefined,
+          height: "100%",
+          overflow: "hidden",
+          whiteSpace: "pre-wrap",
+          maskImage:
+            "linear-gradient(to right, transparent 1%, black 15%, black 85%, transparent 99%)",
+          WebkitMaskImage:
+            "linear-gradient(to right, transparent 1%, black 15%, black 85%, transparent 99%)",
         }}
       >
+        <div
+          key={updateCount.current}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            width: "100%",
+            animation: isDecoding
+              ? `decode-scroll-left ${animDuration.current}s linear forwards`
+              : undefined,
+          }}
+        >
         {segments.flatMap((segment, segmentIndex) =>
           segment.isAbbreviation
             ? [
@@ -88,6 +110,7 @@ export const DecodeDisplay = ({
                 </div>
               ))
         )}
+        </div>
       </div>
     </Box>
   );

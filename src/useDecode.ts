@@ -28,9 +28,6 @@ type UseDecodeParams = {
   language: "EN" | "EN/JA";
 };
 
-/**
- * CWデコード機能を提供するカスタムフック
- */
 export const useDecode = ({
   filterFreq,
   filterWidth,
@@ -63,12 +60,10 @@ export const useDecode = ({
     }
   }, [language, loadedJa]);
 
-  // フィルターパラメータの更新
   useEffect(() => {
     filterParamsRef.current = { filterFreq, filterWidth };
   }, [filterFreq, filterWidth]);
 
-  // デコード処理
   useEffect(() => {
     if (!stream || !loaded) {
       return;

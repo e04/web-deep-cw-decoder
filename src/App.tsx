@@ -11,7 +11,7 @@ function App() {
               web-deep-cw-decoder
             </Text>
             <Text size="xs" c="dimmed">
-              v0.2.1
+              v0.2.2
             </Text>
           </Flex>
         </Stack>

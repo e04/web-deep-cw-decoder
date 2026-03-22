@@ -2,7 +2,7 @@ import { useState } from "react";
 import { DEFAULT_DECODE_BANDWIDTH_HZ, SAMPLE_RATE } from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
-import { DecodeDisplay } from "./components/DecodeDisplay";
+import { DecodeDisplay } from "./DecodeDisplay";
 import { Box, Button, Flex, Stack, NativeSelect, Tooltip } from "@mantine/core";
 
 export const Decoder = () => {
@@ -10,21 +10,21 @@ export const Decoder = () => {
   const [filterFreq, setFilterFreq] = useState<number | null>(null);
   const [filterWidth, setFilterWidth] = useState<number>(250);
   const [gain, setGain] = useState<number>(0);
-  // const [language, setLanguage] = useState<"EN" | "EN/JA">("EN");
-  const [language] = useState<"EN" | "EN/JA">("EN");
+  const [language, setLanguage] = useState<"EN" | "EN/JA">("EN");
 
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>(
     [],
   );
   const [selectedAudioInput, _setSelectedAudioInput] = useState<string>("");
 
-  const { loaded, loadedJa, currentSegments, currentSegmentsJa, isDecoding } = useDecode({
-    filterFreq,
-    filterWidth,
-    gain,
-    stream,
-    language,
-  });
+  const { loaded, loadedJa, currentSegments, currentSegmentsJa, isDecoding } =
+    useDecode({
+      filterFreq,
+      filterWidth,
+      gain,
+      stream,
+      language,
+    });
 
   const setSelectedAudioInput = (deviceId: string) => {
     _setSelectedAudioInput(deviceId);
@@ -63,9 +63,10 @@ export const Decoder = () => {
   const activeFilterWidth = isFilterEnabled
     ? filterWidth
     : DEFAULT_DECODE_BANDWIDTH_HZ;
+  const showJapaneseDisplay = language === "EN/JA";
 
   return (
-    <Stack gap={4}>
+    <Stack gap={8}>
       <Flex justify="space-between" align="center">
         <Flex align="center" gap="sm">
           <Button
@@ -78,49 +79,52 @@ export const Decoder = () => {
                 getStream(selectedAudioInput ?? undefined);
               }
             }}
+            disabled={isLoading}
           >
             {isDecoding ? "STOP" : "START"}
           </Button>
           {isLoading && (
-            <Box style={{ color: "var(--mantine-color-gray-5)", fontSize: "14px" }}>
+            <Box
+              style={{ color: "var(--mantine-color-gray-5)", fontSize: "14px" }}
+            >
               LOADING...
             </Box>
           )}
         </Flex>
       </Flex>
 
-      <Box pos="relative">
-        {stream ? (
-          <Scope
-            stream={stream}
-            setFilterFreq={setFilterFreq}
-            filterFreq={filterFreq}
-            filterWidth={filterWidth}
-            gain={gain}
-          />
-        ) : (
-          <Box
-            style={{
-              height: "256px",
-              width: "100%",
-              background: "var(--mantine-color-dark-9)",
-              borderRadius: "4px",
-              border: "1px solid var(--mantine-color-dark-4)",
-            }}
-          />
-        )}
-      </Box>
+      <Stack gap={0}>
+        <Box pos="relative">
+          {stream ? (
+            <Scope
+              stream={stream}
+              setFilterFreq={setFilterFreq}
+              filterFreq={filterFreq}
+              filterWidth={filterWidth}
+              gain={gain}
+            />
+          ) : (
+            <Box
+              style={{
+                height: "256px",
+                width: "100%",
+                background: "var(--mantine-color-dark-9)",
+              }}
+            />
+          )}
+        </Box>
 
-      <Stack gap={4}>
-        <DecodeDisplay segments={currentSegments} isDecoding={isDecoding} />
+        <Stack gap={0}>
+          <DecodeDisplay segments={currentSegments} isDecoding={isDecoding} />
 
-        {language === "EN/JA" && (
-          <DecodeDisplay
-            segments={currentSegmentsJa}
-            isDecoding={isDecoding}
-            backgroundColor="#36021e"
-          />
-        )}
+          {showJapaneseDisplay && (
+            <DecodeDisplay
+              segments={currentSegmentsJa}
+              isDecoding={isDecoding}
+              backgroundColor="#36021e"
+            />
+          )}
+        </Stack>
       </Stack>
 
       <Flex gap="md" justify="flex-end" wrap="wrap">
@@ -132,10 +136,13 @@ export const Decoder = () => {
               data={audioInputDevices.map((device) => ({
                 value: device.deviceId,
                 label:
-                  device.label || `Device ${audioInputDevices.indexOf(device) + 1}`,
+                  device.label ||
+                  `Device ${audioInputDevices.indexOf(device) + 1}`,
               }))}
               value={selectedAudioInput}
-              onChange={(event) => setSelectedAudioInput(event.currentTarget.value)}
+              onChange={(event) =>
+                setSelectedAudioInput(event.currentTarget.value)
+              }
               disabled={!stream}
             />
           </Box>
@@ -175,14 +182,14 @@ export const Decoder = () => {
             />
           </Box>
         </Tooltip>
-        {/* <NativeSelect
+        <NativeSelect
           label="CW LANG"
           data={["EN", "EN/JA"]}
           value={language}
           onChange={(event) =>
             setLanguage(event.currentTarget.value as "EN" | "EN/JA")
           }
-        /> */}
+        />
       </Flex>
     </Stack>
   );
