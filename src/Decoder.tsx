@@ -2,9 +2,8 @@ import { useState } from "react";
 import { DEFAULT_DECODE_BANDWIDTH_HZ, SAMPLE_RATE } from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
+import { DecodeDisplay } from "./components/DecodeDisplay";
 import { Box, Button, Flex, Stack, NativeSelect, Tooltip } from "@mantine/core";
-
-const ABBREVIATION_COLOR = "var(--mantine-color-yellow-6)"; // Yellow color for abbreviations
 
 export const Decoder = () => {
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -113,60 +112,14 @@ export const Decoder = () => {
       </Box>
 
       <Stack gap={4}>
-        <Box
-          style={{
-            whiteSpace: "pre-wrap",
-            width: "100%",
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: "20px",
-            backgroundColor: "var(--mantine-color-dark-9)",
-            borderRadius: "4px",
-            border: "1px solid var(--mantine-color-dark-4)",
-            height: "32px",
-          }}
-        >
-          {currentSegments.flatMap((segment, segmentIndex) =>
-            Array.from(segment.text).map((char, charIndex) => (
-              <div
-                key={`${segmentIndex}-${charIndex}`}
-                style={{
-                  color: segment.isAbbreviation ? ABBREVIATION_COLOR : undefined,
-                }}
-              >
-                {char}
-              </div>
-            ))
-          )}
-        </Box>
+        <DecodeDisplay segments={currentSegments} isDecoding={isDecoding} />
 
         {language === "EN/JA" && (
-          <Box
-            style={{
-              whiteSpace: "pre-wrap",
-              width: "100%",
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: "20px",
-              backgroundColor: "#36021e",
-              borderRadius: "4px",
-              border: "1px solid var(--mantine-color-dark-4)",
-              height: "32px",
-            }}
-          >
-            {currentSegmentsJa.flatMap((segment, segmentIndex) =>
-              Array.from(segment.text).map((char, charIndex) => (
-                <div
-                  key={`${segmentIndex}-${charIndex}`}
-                  style={{
-                    color: segment.isAbbreviation ? ABBREVIATION_COLOR : undefined,
-                  }}
-                >
-                  {char}
-                </div>
-              ))
-            )}
-          </Box>
+          <DecodeDisplay
+            segments={currentSegmentsJa}
+            isDecoding={isDecoding}
+            backgroundColor="#36021e"
+          />
         )}
       </Stack>
 

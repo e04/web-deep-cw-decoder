@@ -1,3 +1,13 @@
 body {
   font-family: "Roboto Mono", monospace;
 }
+
+@keyframes decode-scroll-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* 32 new STFT frames per 2048-sample chunk / 597 total frames ≈ 5.36% */
+    transform: translateX(-5.36%);
+  }
+}
