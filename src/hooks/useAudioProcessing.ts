@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { SAMPLE_RATE, BUFFER_SAMPLES } from "../const";
+import { AUDIO_CHUNK_SAMPLES, SAMPLE_RATE, getBufferSamples } from "../const";
 
 export type AudioBufferState = {
   samples: Float32Array;
@@ -13,22 +13,33 @@ function audioCallback(
   const chunk = event.inputBuffer.getChannelData(0);
   const chunkLen = chunk.length;
   const { samples } = audioBufferState;
+  const offset = Math.max(0, samples.length - chunkLen);
+  const chunkSlice =
+    chunkLen > samples.length ? chunk.subarray(chunkLen - samples.length) : chunk;
 
   samples.copyWithin(0, chunkLen);
-  samples.set(chunk, BUFFER_SAMPLES - chunkLen);
+  samples.set(chunkSlice, offset);
   audioBufferState.version += 1;
 }
 
 export function useAudioProcessing(
   stream: MediaStream | null,
-  gain: number
+  gain: number,
+  bufferDurationSeconds: number
 ): React.MutableRefObject<AudioBufferState> {
   const audioBufferRef = useRef<AudioBufferState>({
-    samples: new Float32Array(BUFFER_SAMPLES),
+    samples: new Float32Array(getBufferSamples(bufferDurationSeconds)),
     version: 0,
   });
   const audioContextRef = useRef<AudioContext | null>(null);
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+
+  useEffect(() => {
+    audioBufferRef.current = {
+      samples: new Float32Array(getBufferSamples(bufferDurationSeconds)),
+      version: audioBufferRef.current.version + 1,
+    };
+  }, [bufferDurationSeconds]);
 
   useEffect(() => {
     if (!stream) return;
@@ -38,7 +49,11 @@ export function useAudioProcessing(
     const gainNode = audioContext.createGain();
     gainNode.gain.value = Math.pow(10, gain / 20);
 
-    const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+    const scriptProcessor = audioContext.createScriptProcessor(
+      AUDIO_CHUNK_SAMPLES,
+      1,
+      1,
+    );
     scriptProcessor.onaudioprocess = (event) =>
       audioCallback(event, audioBufferRef.current);
 

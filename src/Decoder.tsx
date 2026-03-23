@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { DEFAULT_DECODE_BANDWIDTH_HZ, SAMPLE_RATE } from "./const";
+import {
+  DEFAULT_DECODE_BANDWIDTH_HZ,
+  DEFAULT_DECODE_WINDOW_S,
+  DECODE_WINDOW_OPTIONS,
+  SAMPLE_RATE,
+  type DecodeWindowSeconds,
+} from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
 import { DecodeDisplay } from "./DecodeDisplay";
@@ -11,6 +17,8 @@ export const Decoder = () => {
   const [filterWidth, setFilterWidth] = useState<number>(250);
   const [gain, setGain] = useState<number>(0);
   const [language, setLanguage] = useState<"EN" | "EN/JA">("EN");
+  const [decodeWindowSeconds, setDecodeWindowSeconds] =
+    useState<DecodeWindowSeconds>(DEFAULT_DECODE_WINDOW_S);
 
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>(
     [],
@@ -24,6 +32,7 @@ export const Decoder = () => {
       gain,
       stream,
       language,
+      decodeWindowSeconds,
     });
 
   const setSelectedAudioInput = (deviceId: string) => {
@@ -102,6 +111,7 @@ export const Decoder = () => {
               filterFreq={filterFreq}
               filterWidth={filterWidth}
               gain={gain}
+              decodeWindowSeconds={decodeWindowSeconds}
             />
           ) : (
             <Box
@@ -115,13 +125,18 @@ export const Decoder = () => {
         </Box>
 
         <Stack gap={0}>
-          <DecodeDisplay segments={currentSegments} isDecoding={isDecoding} />
+          <DecodeDisplay
+            segments={currentSegments}
+            isDecoding={isDecoding}
+            decodeWindowSeconds={decodeWindowSeconds}
+          />
 
           {showJapaneseDisplay && (
             <DecodeDisplay
               segments={currentSegmentsJa}
               isDecoding={isDecoding}
               backgroundColor="#36021e"
+              decodeWindowSeconds={decodeWindowSeconds}
             />
           )}
         </Stack>
@@ -153,6 +168,20 @@ export const Decoder = () => {
           value={gain.toString()}
           onChange={(event) => setGain(Number(event.currentTarget.value))}
           rightSection={"dB"}
+        />
+        <NativeSelect
+          label="WINDOW"
+          data={DECODE_WINDOW_OPTIONS.map((seconds) => ({
+            value: seconds.toString(),
+            label: seconds.toString(),
+          }))}
+          value={decodeWindowSeconds.toString()}
+          onChange={(event) =>
+            setDecodeWindowSeconds(
+              Number(event.currentTarget.value) as DecodeWindowSeconds,
+            )
+          }
+          rightSection={"s"}
         />
         <Tooltip label="Click the scope to enable the filter." withArrow>
           <Box>

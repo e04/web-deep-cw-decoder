@@ -10,6 +10,7 @@ type ScopeProps = {
   filterFreq: number | null;
   filterWidth: number;
   gain: number;
+  decodeWindowSeconds: number;
 };
 
 export const Scope = ({
@@ -18,10 +19,11 @@ export const Scope = ({
   filterFreq,
   filterWidth,
   gain,
+  decodeWindowSeconds,
 }: ScopeProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  useSpectrogramRenderer({ stream, gain, canvasRef });
+  useSpectrogramRenderer({ stream, gain, canvasRef, decodeWindowSeconds });
 
   useCanvasInteraction({ canvasRef, filterFreq, setFilterFreq, filterWidth });
 

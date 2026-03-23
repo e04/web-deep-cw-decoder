@@ -26,6 +26,7 @@ type UseDecodeParams = {
   gain: number;
   stream: MediaStream | null;
   language: "EN" | "EN/JA";
+  decodeWindowSeconds: number;
 };
 
 export const useDecode = ({
@@ -34,6 +35,7 @@ export const useDecode = ({
   gain,
   stream,
   language,
+  decodeWindowSeconds,
 }: UseDecodeParams) => {
   const [loaded, setLoaded] = useState(false);
   const [loadedJa, setLoadedJa] = useState(false);
@@ -42,7 +44,7 @@ export const useDecode = ({
   const [isDecoding, setIsDecoding] = useState(false);
 
   const filterParamsRef = useRef({ filterFreq, filterWidth });
-  const audioBufferRef = useAudioProcessing(stream, gain);
+  const audioBufferRef = useAudioProcessing(stream, gain, decodeWindowSeconds);
 
   useEffect(() => {
     (async () => {
@@ -63,6 +65,11 @@ export const useDecode = ({
   useEffect(() => {
     filterParamsRef.current = { filterFreq, filterWidth };
   }, [filterFreq, filterWidth]);
+
+  useEffect(() => {
+    setCurrentSegments([]);
+    setCurrentSegmentsJa([]);
+  }, [decodeWindowSeconds]);
 
   useEffect(() => {
     if (!stream || !loaded) {

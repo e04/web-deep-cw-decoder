@@ -1,30 +1,57 @@
-import { useRef } from "react";
+import { useRef, type CSSProperties } from "react";
 import { Box } from "@mantine/core";
-import { SAMPLE_RATE, BUFFER_SAMPLES, FFT_LENGTH, HOP_LENGTH } from "./const";
+import {
+  AUDIO_CHUNK_SAMPLES,
+  SAMPLE_RATE,
+  FFT_LENGTH,
+  HOP_LENGTH,
+  getBufferSamples,
+} from "./const";
 import type { TextSegment } from "./utils/textDecoder";
 
-// Default animation duration: audio chunk interval = 2048 samples / 3200 Hz
-const DEFAULT_SCROLL_DURATION_S = 2048 / SAMPLE_RATE; // 0.64s
+// Default animation duration: audio chunk interval = audio chunk / sample rate
+const DEFAULT_SCROLL_DURATION_S = AUDIO_CHUNK_SAMPLES / SAMPLE_RATE;
+const SCROLL_FRAME_COUNT = AUDIO_CHUNK_SAMPLES / HOP_LENGTH;
+const SCROLL_STEP_CSS_VAR = "--decode-scroll-step-pct" as const;
 
-// Number of characters in the decode output = STFT frame count
-const DECODE_CHAR_COUNT = Math.floor((BUFFER_SAMPLES - FFT_LENGTH) / HOP_LENGTH) + 1; // 597
-const CHAR_WIDTH_PCT = `${100 / DECODE_CHAR_COUNT}%`;
+type DecodeRowStyle = CSSProperties & {
+  [SCROLL_STEP_CSS_VAR]: string;
+};
+
+const getDecodeCharCount = (decodeWindowSeconds: number) =>
+  Math.floor(
+    (getBufferSamples(decodeWindowSeconds) - FFT_LENGTH) / HOP_LENGTH,
+  ) + 1;
 
 type DecodeDisplayProps = {
   segments: TextSegment[];
   isDecoding: boolean;
   backgroundColor?: string;
+  decodeWindowSeconds: number;
 };
 
 export const DecodeDisplay = ({
   segments,
   isDecoding,
   backgroundColor = "var(--mantine-color-dark-9)",
+  decodeWindowSeconds,
 }: DecodeDisplayProps) => {
   const prevSegmentsRef = useRef(segments);
   const updateCount = useRef(0);
   const lastUpdateTime = useRef(0);
   const animDuration = useRef(DEFAULT_SCROLL_DURATION_S);
+  const decodeCharCount = getDecodeCharCount(decodeWindowSeconds);
+  const charWidthPct = `${100 / decodeCharCount}%`;
+  const scrollStepPct = `${(100 * SCROLL_FRAME_COUNT) / decodeCharCount}%`;
+  const textRowStyle: DecodeRowStyle = {
+    display: "flex",
+    justifyContent: "space-between",
+    width: "100%",
+    animation: isDecoding
+      ? `decode-scroll-left ${animDuration.current}s linear forwards`
+      : undefined,
+    [SCROLL_STEP_CSS_VAR]: scrollStepPct,
+  };
 
   // Update only when segments reference actually changes (not on unrelated re-renders)
   if (segments !== prevSegmentsRef.current) {
@@ -71,45 +98,38 @@ export const DecodeDisplay = ({
       >
         <div
           key={updateCount.current}
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            width: "100%",
-            animation: isDecoding
-              ? `decode-scroll-left ${animDuration.current}s linear forwards`
-              : undefined,
-          }}
+          style={textRowStyle}
         >
-        {segments.flatMap((segment, segmentIndex) =>
-          segment.isAbbreviation
-            ? [
-                <div
-                  key={`${segmentIndex}-abbr`}
-                  style={{
-                    width: CHAR_WIDTH_PCT,
-                    flexShrink: 0,
-                    textAlign: "center",
-                    whiteSpace: "nowrap",
-                    overflow: "visible",
-                    textDecorationLine: "overline",
-                  }}
-                >
-                  {segment.text}
-                </div>,
-              ]
-            : Array.from(segment.text).map((char, charIndex) => (
-                <div
-                  key={`${segmentIndex}-${charIndex}`}
-                  style={{
-                    width: CHAR_WIDTH_PCT,
-                    flexShrink: 0,
-                    textAlign: "center",
-                  }}
-                >
-                  {char}
-                </div>
-              ))
-        )}
+          {segments.flatMap((segment, segmentIndex) =>
+            segment.isAbbreviation
+              ? [
+                  <div
+                    key={`${segmentIndex}-abbr`}
+                    style={{
+                      width: charWidthPct,
+                      flexShrink: 0,
+                      textAlign: "center",
+                      whiteSpace: "nowrap",
+                      overflow: "visible",
+                      textDecorationLine: "overline",
+                    }}
+                  >
+                    {segment.text}
+                  </div>,
+                ]
+              : Array.from(segment.text).map((char, charIndex) => (
+                  <div
+                    key={`${segmentIndex}-${charIndex}`}
+                    style={{
+                      width: charWidthPct,
+                      flexShrink: 0,
+                      textAlign: "center",
+                    }}
+                  >
+                    {char}
+                  </div>
+                )),
+          )}
         </div>
       </div>
     </Box>
