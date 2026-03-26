@@ -51,8 +51,8 @@ export const PileupOverlay = ({
               isDecoding={isDecoding}
               backgroundColor="transparent"
               decodeWindowSeconds={decodeWindowSeconds}
-              height={22}
-              fontSize={16}
+              height={24}
+              fontSize={20}
               textStroke
             />
           </Box>
