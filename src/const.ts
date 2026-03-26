@@ -166,5 +166,5 @@ export const DEFAULT_DECODE_BANDWIDTH_HZ =
 export const PILEUP_FILTER_WIDTH_HZ = 50;
 export const PILEUP_WINDOW_S = 8;
 export const PILEUP_MIN_FREQ_HZ = 100;
-export const PILEUP_MAX_FREQ_HZ = 1600;
+export const PILEUP_MAX_FREQ_HZ = 2000;
 export const PILEUP_MAX_PEAKS = 6;

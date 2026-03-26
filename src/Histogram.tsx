@@ -3,6 +3,7 @@ import { Box } from "@mantine/core";
 import {
   MIN_FREQ_HZ,
   MAX_FREQ_HZ,
+  PILEUP_FILTER_WIDTH_HZ,
   PILEUP_MAX_PEAKS,
 } from "./const";
 import type { FrequencyDataState } from "./hooks/useSpectrogramRenderer";
@@ -10,7 +11,7 @@ import type { FrequencyDataState } from "./hooks/useSpectrogramRenderer";
 const HISTOGRAM_WIDTH = 32;
 const EMA_ALPHA = 0.02;
 const MIN_PEAK_AMPLITUDE = 30;
-const MIN_PEAK_SEPARATION_HZ = 60;
+const MIN_PEAK_SEPARATION_HZ = PILEUP_FILTER_WIDTH_HZ * 1.5;
 const PEAK_UPDATE_INTERVAL_MS = 1000;
 const PEAK_MATCH_HZ = 40;
 // A peak must persist this long before being reported
@@ -24,6 +25,28 @@ type TrackedPeak = {
   firstSeen: number;
   lastSeen: number;
 };
+
+function selectStrongSeparatedPeaks<T extends { frequency: number; amplitude: number }>(
+  peaks: T[],
+  maxPeaks: number,
+  minSeparationHz: number,
+): T[] {
+  const selected: T[] = [];
+
+  for (const peak of peaks) {
+    if (selected.length >= maxPeaks) break;
+    if (
+      selected.every(
+        (selectedPeak) =>
+          Math.abs(selectedPeak.frequency - peak.frequency) >= minSeparationHz,
+      )
+    ) {
+      selected.push(peak);
+    }
+  }
+
+  return selected;
+}
 
 function findRawPeaks(
   avgData: Float32Array,
@@ -66,19 +89,11 @@ function findRawPeaks(
 
   candidates.sort((a, b) => b.amplitude - a.amplitude);
 
-  const selected: { frequency: number; amplitude: number }[] = [];
-  for (const c of candidates) {
-    if (selected.length >= PILEUP_MAX_PEAKS) break;
-    if (
-      selected.every(
-        (s) => Math.abs(s.frequency - c.frequency) >= MIN_PEAK_SEPARATION_HZ,
-      )
-    ) {
-      selected.push(c);
-    }
-  }
-
-  return selected;
+  return selectStrongSeparatedPeaks(
+    candidates,
+    PILEUP_MAX_PEAKS,
+    MIN_PEAK_SEPARATION_HZ,
+  );
 }
 
 function updateTrackedPeaks(
@@ -116,10 +131,14 @@ function updateTrackedPeaks(
 }
 
 function getConfirmedPeaks(tracked: TrackedPeak[], now: number): number[] {
-  return tracked
+  const confirmed = tracked
     .filter((t) => now - t.firstSeen >= PEAK_CONFIRM_MS)
     .sort((a, b) => b.amplitude - a.amplitude)
-    .slice(0, PILEUP_MAX_PEAKS)
+  return selectStrongSeparatedPeaks(
+    confirmed,
+    PILEUP_MAX_PEAKS,
+    MIN_PEAK_SEPARATION_HZ,
+  )
     .map((t) => Math.round(t.frequency))
     .sort((a, b) => a - b);
 }

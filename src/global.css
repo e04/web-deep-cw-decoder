@@ -2,6 +2,10 @@ body {
   font-family: "Roboto Mono", monospace;
 }
 
+.scopeCanvas--pileup {
+  filter: brightness(0.75);
+}
+
 @keyframes decode-scroll-left {
   from {
     transform: translateX(0);

@@ -117,7 +117,7 @@ export const Decoder = () => {
     : DEFAULT_DECODE_BANDWIDTH_HZ;
   const showJapaneseDisplay = !isPileup && language === "EN/JA";
   const isActive = isPileup ? isPileupDecoding : isDecoding;
-  const scopeHeight = isPileup ? 512 : 256;
+  const scopeHeight = isPileup ? 768 : 256;
 
   return (
     <Stack gap={8}>
@@ -161,6 +161,7 @@ export const Decoder = () => {
                 frequencyDataRef={frequencyDataRef}
                 disableInteraction={isPileup}
                 height={scopeHeight}
+                canvasClassName={isPileup ? "scopeCanvas--pileup" : undefined}
                 {...(isPileup && { minFreqHz: PILEUP_MIN_FREQ_HZ, maxFreqHz: PILEUP_MAX_FREQ_HZ })}
               />
             ) : (
