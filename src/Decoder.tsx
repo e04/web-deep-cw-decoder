@@ -243,20 +243,24 @@ export const Decoder = () => {
           rightSection={"dB"}
         />
         {!isPileup && (
-          <NativeSelect
-            label="WINDOW"
-            data={DECODE_WINDOW_OPTIONS.map((seconds) => ({
-              value: seconds.toString(),
-              label: seconds.toString(),
-            }))}
-            value={decodeWindowSeconds.toString()}
-            onChange={(event) =>
-              setDecodeWindowSeconds(
-                Number(event.currentTarget.value) as DecodeWindowSeconds,
-              )
-            }
-            rightSection={"s"}
-          />
+          <Tooltip label="Shorter windows are more accurate." withArrow>
+            <Box>
+              <NativeSelect
+                label="WINDOW"
+                data={DECODE_WINDOW_OPTIONS.map((seconds) => ({
+                  value: seconds.toString(),
+                  label: seconds.toString(),
+                }))}
+                value={decodeWindowSeconds.toString()}
+                onChange={(event) =>
+                  setDecodeWindowSeconds(
+                    Number(event.currentTarget.value) as DecodeWindowSeconds,
+                  )
+                }
+                rightSection={"s"}
+              />
+            </Box>
+          </Tooltip>
         )}
         {!isPileup && (
           <Tooltip label="Click the scope to enable the filter." withArrow>
