@@ -145,9 +145,9 @@ export const NumToChar = Object.fromEntries(
   ENGLISH_CONFIG.VOCABULARY.map((char, i) => [i, char]),
 );
 
-export const FFT_LENGTH = 256;
-export const HOP_LENGTH = 64;
-export const SAMPLE_RATE = 3200;
+export const FFT_LENGTH = 768;
+export const HOP_LENGTH = 192;
+export const SAMPLE_RATE = 9600;
 export const AUDIO_CHUNK_SAMPLES = 2048;
 export const DECODE_WINDOW_OPTIONS = [6, 12, 18, 30] as const;
 export type DecodeWindowSeconds = (typeof DECODE_WINDOW_OPTIONS)[number];

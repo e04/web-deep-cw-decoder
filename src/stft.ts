@@ -1,22 +1,37 @@
 export class FFT {
   public readonly fftSize: number;
-  private reverseTable: Uint32Array;
-  private sinTable: Float32Array;
-  private cosTable: Float32Array;
+  private readonly isPowerOfTwo: boolean;
+  private reverseTable?: Uint32Array;
+  private sinTable?: Float32Array;
+  private cosTable?: Float32Array;
+  private bluesteinSize?: number;
+  private bluesteinChirpTable?: Float32Array;
+  private bluesteinKernelFft?: Float32Array;
+  private bluesteinFft?: FFT;
 
   constructor(fftSize: number) {
-    if ((fftSize & (fftSize - 1)) !== 0) {
-      throw new Error("FFT size must be a power of 2.");
+    if (fftSize <= 0) {
+      throw new Error("FFT size must be positive.");
     }
     this.fftSize = fftSize;
+    this.isPowerOfTwo = (fftSize & (fftSize - 1)) === 0;
 
-    this.reverseTable = new Uint32Array(fftSize);
-    this.sinTable = new Float32Array(fftSize);
-    this.cosTable = new Float32Array(fftSize);
+    if (this.isPowerOfTwo) {
+      this.initializePowerOfTwoTables();
+      return;
+    }
+
+    this.initializeBluesteinTables();
+  }
+
+  private initializePowerOfTwoTables(): void {
+    this.reverseTable = new Uint32Array(this.fftSize);
+    this.sinTable = new Float32Array(this.fftSize);
+    this.cosTable = new Float32Array(this.fftSize);
 
     let limit = 1;
-    let bit = fftSize >> 1;
-    while (limit < fftSize) {
+    let bit = this.fftSize >> 1;
+    while (limit < this.fftSize) {
       for (let i = 0; i < limit; i++) {
         this.reverseTable[i + limit] = this.reverseTable[i] + bit;
       }
@@ -24,16 +39,64 @@ export class FFT {
       bit = bit >> 1;
     }
 
-    for (let i = 0; i < fftSize; i++) {
-      const angle = (-2 * Math.PI * i) / fftSize;
+    for (let i = 0; i < this.fftSize; i++) {
+      const angle = (-2 * Math.PI * i) / this.fftSize;
       this.sinTable[i] = Math.sin(angle);
       this.cosTable[i] = Math.cos(angle);
     }
   }
 
-  public transform(complexArray: Float32Array): void {
+  private initializeBluesteinTables(): void {
+    const convolutionSize = nextPowerOfTwo(this.fftSize * 2 - 1);
+    const chirpTable = new Float32Array(this.fftSize * 2);
+    const kernel = new Float32Array(convolutionSize * 2);
+
     for (let i = 0; i < this.fftSize; i++) {
-      const reversedIndex = this.reverseTable[i];
+      const angle = (Math.PI * ((i * i) % (this.fftSize * 2))) / this.fftSize;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+
+      chirpTable[i * 2] = cos;
+      chirpTable[i * 2 + 1] = sin;
+
+      kernel[i * 2] = cos;
+      kernel[i * 2 + 1] = sin;
+      if (i !== 0) {
+        const mirroredIndex = convolutionSize - i;
+        kernel[mirroredIndex * 2] = cos;
+        kernel[mirroredIndex * 2 + 1] = sin;
+      }
+    }
+
+    const bluesteinFft = new FFT(convolutionSize);
+    bluesteinFft.transform(kernel);
+
+    this.bluesteinSize = convolutionSize;
+    this.bluesteinChirpTable = chirpTable;
+    this.bluesteinKernelFft = kernel;
+    this.bluesteinFft = bluesteinFft;
+  }
+
+  public transform(complexArray: Float32Array): void {
+    if (complexArray.length !== this.fftSize * 2) {
+      throw new Error("FFT input length does not match configured FFT size.");
+    }
+
+    if (this.isPowerOfTwo) {
+      this.powerOfTwoTransform(complexArray);
+      return;
+    }
+
+    this.bluesteinTransform(complexArray);
+  }
+
+  private powerOfTwoTransform(complexArray: Float32Array): void {
+    const reverseTable = this.reverseTable!;
+    const sinTable = this.sinTable!;
+    const cosTable = this.cosTable!;
+
+    for (let i = 0; i < this.fftSize; i++) {
+      const reversedIndex = reverseTable[i];
       if (i < reversedIndex) {
         [complexArray[i * 2], complexArray[reversedIndex * 2]] = [
           complexArray[reversedIndex * 2],
@@ -52,8 +115,8 @@ export class FFT {
       for (let i = 0; i < this.fftSize; i += step) {
         for (let j = 0; j < halfSize; j++) {
           const angleIndex = j * angleStep;
-          const wReal = this.cosTable[angleIndex];
-          const wImag = this.sinTable[angleIndex];
+          const wReal = cosTable[angleIndex];
+          const wImag = sinTable[angleIndex];
 
           const i_j = (i + j) * 2;
           const i_j_half = (i + j + halfSize) * 2;
@@ -73,6 +136,67 @@ export class FFT {
         }
       }
     }
+  }
+
+  private bluesteinTransform(complexArray: Float32Array): void {
+    const convolutionSize = this.bluesteinSize!;
+    const chirpTable = this.bluesteinChirpTable!;
+    const kernelFft = this.bluesteinKernelFft!;
+    const bluesteinFft = this.bluesteinFft!;
+    const work = new Float32Array(convolutionSize * 2);
+
+    for (let i = 0; i < this.fftSize; i++) {
+      const inputReal = complexArray[i * 2];
+      const inputImag = complexArray[i * 2 + 1];
+      const chirpReal = chirpTable[i * 2];
+      const chirpImag = chirpTable[i * 2 + 1];
+
+      work[i * 2] = inputReal * chirpReal + inputImag * chirpImag;
+      work[i * 2 + 1] = inputImag * chirpReal - inputReal * chirpImag;
+    }
+
+    bluesteinFft.transform(work);
+    for (let i = 0; i < convolutionSize; i++) {
+      const workReal = work[i * 2];
+      const workImag = work[i * 2 + 1];
+      const kernelReal = kernelFft[i * 2];
+      const kernelImag = kernelFft[i * 2 + 1];
+
+      work[i * 2] = workReal * kernelReal - workImag * kernelImag;
+      work[i * 2 + 1] = workReal * kernelImag + workImag * kernelReal;
+    }
+
+    inverseTransform(work, bluesteinFft);
+    for (let i = 0; i < this.fftSize; i++) {
+      const workReal = work[i * 2];
+      const workImag = work[i * 2 + 1];
+      const chirpReal = chirpTable[i * 2];
+      const chirpImag = chirpTable[i * 2 + 1];
+
+      complexArray[i * 2] = workReal * chirpReal + workImag * chirpImag;
+      complexArray[i * 2 + 1] = workImag * chirpReal - workReal * chirpImag;
+    }
+  }
+}
+
+function nextPowerOfTwo(value: number): number {
+  let power = 1;
+  while (power < value) {
+    power <<= 1;
+  }
+  return power;
+}
+
+function inverseTransform(complexArray: Float32Array, fft: FFT): void {
+  for (let i = 0; i < fft.fftSize; i++) {
+    complexArray[i * 2 + 1] = -complexArray[i * 2 + 1];
+  }
+
+  fft.transform(complexArray);
+
+  for (let i = 0; i < fft.fftSize; i++) {
+    complexArray[i * 2] /= fft.fftSize;
+    complexArray[i * 2 + 1] = -complexArray[i * 2 + 1] / fft.fftSize;
   }
 }
 
