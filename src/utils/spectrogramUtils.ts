@@ -1,14 +1,28 @@
 import { STFT } from "../stft";
-import { FFT_LENGTH, HOP_LENGTH, SAMPLE_RATE } from "../const";
+import {
+  DECODABLE_MAX_FREQ_HZ,
+  DECODABLE_MIN_FREQ_HZ,
+  FFT_LENGTH,
+  HOP_LENGTH,
+  SAMPLE_RATE,
+} from "../const";
 import { applyBandpassFilter } from "./audioFilters";
 
 const stft = new STFT(FFT_LENGTH, HOP_LENGTH);
 const TOTAL_BINS = FFT_LENGTH / 2 + 1;
-const START_BIN = Math.floor(TOTAL_BINS / 4);
-const END_BIN = TOTAL_BINS - START_BIN;
-const CROPPED_BINS = END_BIN - START_BIN;
 const BIN_RESOLUTION = SAMPLE_RATE / FFT_LENGTH; // 12.5 Hz/bin
+const START_BIN = Math.round(DECODABLE_MIN_FREQ_HZ / BIN_RESOLUTION);
+const END_BIN = Math.round(DECODABLE_MAX_FREQ_HZ / BIN_RESOLUTION) + 1;
+const CROPPED_BINS = END_BIN - START_BIN;
 const NORMAL_CENTER_BIN = Math.round((START_BIN + END_BIN - 1) / 2); // bin 64 = 800Hz
+
+if (END_BIN > TOTAL_BINS) {
+  throw new Error("Configured decode band exceeds the FFT spectrum.");
+}
+
+if (CROPPED_BINS !== 65) {
+  throw new Error(`Model input must remain 65 bins, got ${CROPPED_BINS}.`);
+}
 
 export function audioToSpectrogramTensor(
   audio: Float32Array,
