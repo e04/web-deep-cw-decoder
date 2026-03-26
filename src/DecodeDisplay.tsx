@@ -64,7 +64,10 @@ export const DecodeDisplay = ({
     prevSegmentsRef.current = segments;
     const now = performance.now();
     if (lastUpdateTime.current > 0) {
-      animDuration.current = (now - lastUpdateTime.current) / 1000;
+      animDuration.current = Math.max(
+        DEFAULT_SCROLL_DURATION_S,
+        (now - lastUpdateTime.current) / 1000,
+      );
     }
     lastUpdateTime.current = now;
     updateCount.current += 1;
