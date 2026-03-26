@@ -18,6 +18,7 @@ type ScopeProps = {
   height?: number;
   minFreqHz?: number;
   maxFreqHz?: number;
+  canvasClassName?: string;
 };
 
 export const Scope = ({
@@ -32,6 +33,7 @@ export const Scope = ({
   height = 256,
   minFreqHz = MIN_FREQ_HZ,
   maxFreqHz = MAX_FREQ_HZ,
+  canvasClassName,
 }: ScopeProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -51,6 +53,7 @@ export const Scope = ({
       <Box
         component="canvas"
         ref={canvasRef}
+        className={canvasClassName}
         style={{
           display: "block",
           background: "var(--mantine-color-dark-9)",
