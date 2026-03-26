@@ -3,6 +3,7 @@ import { Box } from "@mantine/core";
 import {
   MIN_FREQ_HZ,
   MAX_FREQ_HZ,
+  PILEUP_MAX_PEAKS,
 } from "./const";
 import type { FrequencyDataState } from "./hooks/useSpectrogramRenderer";
 
@@ -10,7 +11,6 @@ const HISTOGRAM_WIDTH = 32;
 const EMA_ALPHA = 0.02;
 const MIN_PEAK_AMPLITUDE = 30;
 const MIN_PEAK_SEPARATION_HZ = 60;
-const MAX_PEAKS = 8;
 const PEAK_UPDATE_INTERVAL_MS = 1000;
 const PEAK_MATCH_HZ = 40;
 // A peak must persist this long before being reported
@@ -68,7 +68,7 @@ function findRawPeaks(
 
   const selected: { frequency: number; amplitude: number }[] = [];
   for (const c of candidates) {
-    if (selected.length >= MAX_PEAKS) break;
+    if (selected.length >= PILEUP_MAX_PEAKS) break;
     if (
       selected.every(
         (s) => Math.abs(s.frequency - c.frequency) >= MIN_PEAK_SEPARATION_HZ,
@@ -119,7 +119,7 @@ function getConfirmedPeaks(tracked: TrackedPeak[], now: number): number[] {
   return tracked
     .filter((t) => now - t.firstSeen >= PEAK_CONFIRM_MS)
     .sort((a, b) => b.amplitude - a.amplitude)
-    .slice(0, MAX_PEAKS)
+    .slice(0, PILEUP_MAX_PEAKS)
     .map((t) => Math.round(t.frequency))
     .sort((a, b) => a - b);
 }
