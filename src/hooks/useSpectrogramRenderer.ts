@@ -2,11 +2,20 @@ import { useEffect, useRef } from "react";
 import { MIN_FREQ_HZ, MAX_FREQ_HZ } from "../const";
 import { buildColorLUT } from "../utils/colorUtils";
 
+export type FrequencyDataState = {
+  data: Uint8Array;
+  sampleRate: number;
+  binCount: number;
+};
+
 type UseSpectrogramRendererParams = {
   stream: MediaStream;
   gain: number;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   decodeWindowSeconds: number;
+  frequencyDataRef?: React.MutableRefObject<FrequencyDataState | null>;
+  minFreqHz?: number;
+  maxFreqHz?: number;
 };
 
 export const useSpectrogramRenderer = ({
@@ -14,6 +23,9 @@ export const useSpectrogramRenderer = ({
   gain,
   canvasRef,
   decodeWindowSeconds,
+  frequencyDataRef,
+  minFreqHz = MIN_FREQ_HZ,
+  maxFreqHz = MAX_FREQ_HZ,
 }: UseSpectrogramRendererParams) => {
   const rafRef = useRef<number | null>(null);
   const nodesRef = useRef<{
@@ -27,12 +39,17 @@ export const useSpectrogramRenderer = ({
     pixelAccumulator: 0,
   });
   const decodeWindowSecondsRef = useRef(decodeWindowSeconds);
+  const freqRangeRef = useRef({ minFreqHz, maxFreqHz });
 
   useEffect(() => {
     decodeWindowSecondsRef.current = decodeWindowSeconds;
     renderStateRef.current.lastTime = performance.now();
     renderStateRef.current.pixelAccumulator = 0;
   }, [decodeWindowSeconds]);
+
+  useEffect(() => {
+    freqRangeRef.current = { minFreqHz, maxFreqHz };
+  }, [minFreqHz, maxFreqHz]);
 
   useEffect(() => {
     if (nodesRef.current) return;
@@ -90,6 +107,21 @@ export const useSpectrogramRenderer = ({
 
       analyser.getByteFrequencyData(dataArray);
 
+      if (frequencyDataRef) {
+        if (
+          !frequencyDataRef.current ||
+          frequencyDataRef.current.data.length !== freqBins
+        ) {
+          frequencyDataRef.current = {
+            data: new Uint8Array(dataArray),
+            sampleRate: audioCtx.sampleRate,
+            binCount: freqBins,
+          };
+        } else {
+          frequencyDataRef.current.data.set(dataArray);
+        }
+      }
+
       ctx2d.drawImage(
         currentCanvas,
         0,
@@ -108,10 +140,11 @@ export const useSpectrogramRenderer = ({
 
       const buf = column.data;
       const nyquist = audioCtx.sampleRate / 2;
-      const minBin = Math.floor((MIN_FREQ_HZ / nyquist) * (freqBins - 1));
+      const { minFreqHz: minF, maxFreqHz: maxF } = freqRangeRef.current;
+      const minBin = Math.floor((minF / nyquist) * (freqBins - 1));
       const maxBin = Math.min(
         freqBins - 1,
-        Math.floor((Math.min(MAX_FREQ_HZ, nyquist) / nyquist) * (freqBins - 1))
+        Math.floor((Math.min(maxF, nyquist) / nyquist) * (freqBins - 1))
       );
 
       for (let y = 0; y < currentCanvas.height; y++) {
@@ -165,5 +198,5 @@ export const useSpectrogramRenderer = ({
         nodesRef.current = null;
       }
     };
-  }, [stream, gain, canvasRef]);
+  }, [stream, gain, canvasRef, frequencyDataRef]);
 };

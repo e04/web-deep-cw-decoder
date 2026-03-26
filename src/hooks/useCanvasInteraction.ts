@@ -11,6 +11,7 @@ type UseCanvasInteractionParams = {
   filterFreq: number | null;
   setFilterFreq: (freq: number | null) => void;
   filterWidth: number;
+  enabled?: boolean;
 };
 
 const constrainFrequency = (
@@ -47,8 +48,10 @@ export const useCanvasInteraction = ({
   filterFreq,
   setFilterFreq,
   filterWidth,
+  enabled = true,
 }: UseCanvasInteractionParams) => {
   useEffect(() => {
+    if (!enabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -71,9 +74,10 @@ export const useCanvasInteraction = ({
     return () => {
       canvas.removeEventListener("click", handleCanvasClick);
     };
-  }, [filterFreq, setFilterFreq, filterWidth, canvasRef]);
+  }, [filterFreq, setFilterFreq, filterWidth, canvasRef, enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -100,5 +104,5 @@ export const useCanvasInteraction = ({
     return () => {
       canvas.removeEventListener("wheel", handleWheel);
     };
-  }, [filterFreq, setFilterFreq, filterWidth, canvasRef]);
+  }, [filterFreq, setFilterFreq, filterWidth, canvasRef, enabled]);
 };

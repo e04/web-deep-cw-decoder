@@ -11,6 +11,7 @@ type WorkerRequest =
       audioBuffer: Float32Array;
       filterFreq: number | null;
       filterWidth: number;
+      shiftTargetFreq?: number;
     };
 
 type WorkerResponse =
@@ -103,6 +104,7 @@ export async function runInference(
   filterFreq: number | null,
   filterWidth: number,
   lang: Lang = "en",
+  shiftTargetFreq?: number,
 ): Promise<TextSegment[]> {
   try {
     await loadModel(lang);
@@ -121,6 +123,7 @@ export async function runInference(
         audioBuffer: audioCopy,
         filterFreq,
         filterWidth,
+        shiftTargetFreq,
       } as Omit<WorkerRequest, "id">,
       [audioCopy.buffer],
     );

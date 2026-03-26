@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import * as ort from "onnxruntime-web";
-import { audioToSpectrogramTensor } from "../utils/spectrogramUtils";
+import { audioToSpectrogramTensor, audioToShiftedSpectrogramTensor } from "../utils/spectrogramUtils";
 import { decodePredictions, type TextSegment } from "../utils/textDecoder";
 import { ENGLISH_CONFIG, JAPANESE_CONFIG } from "../const";
 
@@ -21,6 +21,7 @@ type WorkerRequest =
       audioBuffer: Float32Array;
       filterFreq: number | null;
       filterWidth: number;
+      shiftTargetFreq?: number;
     };
 
 type WorkerResponse =
@@ -48,15 +49,14 @@ async function handleRunInference(
   audioBuffer: Float32Array,
   filterFreq: number | null,
   filterWidth: number,
-  lang: Lang
+  lang: Lang,
+  shiftTargetFreq?: number,
 ): Promise<TextSegment[]> {
   const session = await ensureSession(lang);
 
-  const spectrogramInput = audioToSpectrogramTensor(
-    audioBuffer,
-    filterFreq,
-    filterWidth,
-  );
+  const spectrogramInput = shiftTargetFreq != null
+    ? audioToShiftedSpectrogramTensor(audioBuffer, shiftTargetFreq)
+    : audioToSpectrogramTensor(audioBuffer, filterFreq, filterWidth);
   if (!spectrogramInput) {
     return [];
   }
@@ -100,7 +100,8 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         message.audioBuffer,
         message.filterFreq,
         message.filterWidth,
-        message.lang
+        message.lang,
+        message.shiftTargetFreq,
       );
       respond({ id: message.id, type: "inferenceResult", segments });
       return;

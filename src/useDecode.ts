@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef, type MutableRefObject } from "react";
 import { loadModel, runInference } from "./utils/inference";
-import { useAudioProcessing } from "./hooks/useAudioProcessing";
+import type { AudioBufferState } from "./hooks/useAudioProcessing";
 import type { TextSegment } from "./utils/textDecoder";
 
-const waitForNextAudioChunk = (
+export const waitForNextAudioChunk = (
   audioBufferRef: MutableRefObject<{ version: number }>,
   currentVersion: number,
   isCancelled: () => boolean,
@@ -23,19 +23,21 @@ const waitForNextAudioChunk = (
 type UseDecodeParams = {
   filterFreq: number | null;
   filterWidth: number;
-  gain: number;
   stream: MediaStream | null;
   language: "EN" | "EN/JA";
   decodeWindowSeconds: number;
+  audioBufferRef: MutableRefObject<AudioBufferState>;
+  enabled?: boolean;
 };
 
 export const useDecode = ({
   filterFreq,
   filterWidth,
-  gain,
   stream,
   language,
   decodeWindowSeconds,
+  audioBufferRef,
+  enabled = true,
 }: UseDecodeParams) => {
   const [loaded, setLoaded] = useState(false);
   const [loadedJa, setLoadedJa] = useState(false);
@@ -44,7 +46,6 @@ export const useDecode = ({
   const [isDecoding, setIsDecoding] = useState(false);
 
   const filterParamsRef = useRef({ filterFreq, filterWidth });
-  const audioBufferRef = useAudioProcessing(stream, gain, decodeWindowSeconds);
 
   useEffect(() => {
     (async () => {
@@ -72,7 +73,7 @@ export const useDecode = ({
   }, [decodeWindowSeconds]);
 
   useEffect(() => {
-    if (!stream || !loaded) {
+    if (!stream || !loaded || !enabled) {
       return;
     }
 
@@ -130,7 +131,7 @@ export const useDecode = ({
       cancelled = true;
       setIsDecoding(false);
     };
-  }, [stream, loaded, loadedJa, language, audioBufferRef]);
+  }, [stream, loaded, loadedJa, language, audioBufferRef, enabled]);
 
   return { loaded, loadedJa, currentSegments, currentSegmentsJa, isDecoding };
 };
