@@ -31,13 +31,13 @@ export const PileupOverlay = ({
         overflow: "hidden",
       }}
     >
-      {peakFrequencies.map((freq, i) => {
+      {peakFrequencies.map((freq) => {
         const segments = segmentsMap[freq] ?? [];
         const topPercent = ((maxFreqHz - freq) / range) * 100;
 
         return (
           <Box
-            key={i}
+            key={freq}
             style={{
               position: "absolute",
               left: 0,
