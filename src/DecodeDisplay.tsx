@@ -28,6 +28,9 @@ type DecodeDisplayProps = {
   isDecoding: boolean;
   backgroundColor?: string;
   decodeWindowSeconds: number;
+  height?: number;
+  fontSize?: number;
+  textStroke?: boolean;
 };
 
 export const DecodeDisplay = ({
@@ -35,6 +38,9 @@ export const DecodeDisplay = ({
   isDecoding,
   backgroundColor = "var(--mantine-color-dark-9)",
   decodeWindowSeconds,
+  height = 32,
+  fontSize = 20,
+  textStroke = false,
 }: DecodeDisplayProps) => {
   const prevSegmentsRef = useRef(segments);
   const updateCount = useRef(0);
@@ -69,9 +75,9 @@ export const DecodeDisplay = ({
       style={{
         position: "relative",
         width: "100%",
-        height: "32px",
-        fontSize: "20px",
-        borderTop: "1px solid var(--mantine-color-dark-8)",
+        height: `${height}px`,
+        fontSize: `${fontSize}px`,
+        borderTop: textStroke ? "none" : "1px solid var(--mantine-color-dark-8)",
       }}
     >
       {/* Background layer – stays solid, unaffected by mask */}
@@ -94,6 +100,12 @@ export const DecodeDisplay = ({
             "linear-gradient(to right, transparent 1%, black 15%, black 85%, transparent 99%)",
           WebkitMaskImage:
             "linear-gradient(to right, transparent 1%, black 15%, black 85%, transparent 99%)",
+          ...(textStroke
+            ? {
+                WebkitTextStroke: "3px black",
+                paintOrder: "stroke fill",
+              }
+            : {}),
         }}
       >
         <div

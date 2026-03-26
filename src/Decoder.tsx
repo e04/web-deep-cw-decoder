@@ -1,17 +1,28 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   DEFAULT_DECODE_BANDWIDTH_HZ,
   DEFAULT_DECODE_WINDOW_S,
   DECODE_WINDOW_OPTIONS,
   SAMPLE_RATE,
+  PILEUP_WINDOW_S,
+  PILEUP_MIN_FREQ_HZ,
+  PILEUP_MAX_FREQ_HZ,
   type DecodeWindowSeconds,
 } from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
+import { useAudioProcessing } from "./hooks/useAudioProcessing";
+import { usePileupDecode } from "./hooks/usePileupDecode";
 import { DecodeDisplay } from "./DecodeDisplay";
+import { Histogram } from "./Histogram";
+import { PileupOverlay } from "./PileupOverlay";
+import type { FrequencyDataState } from "./hooks/useSpectrogramRenderer";
 import { Box, Button, Flex, Stack, NativeSelect, Tooltip } from "@mantine/core";
 
+type DecoderMode = "normal" | "pileup";
+
 export const Decoder = () => {
+  const [mode, setMode] = useState<DecoderMode>("normal");
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [filterFreq, setFilterFreq] = useState<number | null>(null);
   const [filterWidth, setFilterWidth] = useState<number>(250);
@@ -25,15 +36,47 @@ export const Decoder = () => {
   );
   const [selectedAudioInput, _setSelectedAudioInput] = useState<string>("");
 
+  const [pileupPeaks, setPileupPeaks] = useState<number[]>([]);
+  const pileupPeaksRef = useRef<number[]>([]);
+  const frequencyDataRef = useRef<FrequencyDataState | null>(null);
+
+  useEffect(() => {
+    pileupPeaksRef.current = pileupPeaks;
+  }, [pileupPeaks]);
+
+  const isPileup = mode === "pileup";
+
+  // Reset filter when entering pileup mode
+  useEffect(() => {
+    if (isPileup) {
+      setFilterFreq(null);
+      setPileupPeaks([]);
+    }
+  }, [isPileup]);
+
+  const effectiveWindowSeconds = isPileup ? PILEUP_WINDOW_S : decodeWindowSeconds;
+
+  const audioBufferRef = useAudioProcessing(stream, gain, effectiveWindowSeconds);
+
   const { loaded, loadedJa, currentSegments, currentSegmentsJa, isDecoding } =
     useDecode({
-      filterFreq,
+      filterFreq: isPileup ? null : filterFreq,
       filterWidth,
-      gain,
       stream,
-      language,
-      decodeWindowSeconds,
+      language: isPileup ? "EN" : language,
+      decodeWindowSeconds: effectiveWindowSeconds,
+      audioBufferRef,
+      enabled: !isPileup,
     });
+
+  const { segmentsMap, isDecoding: isPileupDecoding } = usePileupDecode({
+    stream,
+    loaded,
+    audioBufferRef,
+    peakFrequenciesRef: pileupPeaksRef,
+    enabled: isPileup,
+    decodeWindowSeconds: effectiveWindowSeconds,
+  });
 
   const setSelectedAudioInput = (deviceId: string) => {
     _setSelectedAudioInput(deviceId);
@@ -67,12 +110,14 @@ export const Decoder = () => {
     setAudioInputDevices(audioInputs);
   };
 
-  const isLoading = !loaded || (language === "EN/JA" && !loadedJa);
+  const isLoading = !loaded || (!isPileup && language === "EN/JA" && !loadedJa);
   const isFilterEnabled = filterFreq !== null;
   const activeFilterWidth = isFilterEnabled
     ? filterWidth
     : DEFAULT_DECODE_BANDWIDTH_HZ;
-  const showJapaneseDisplay = language === "EN/JA";
+  const showJapaneseDisplay = !isPileup && language === "EN/JA";
+  const isActive = isPileup ? isPileupDecoding : isDecoding;
+  const scopeHeight = isPileup ? 512 : 256;
 
   return (
     <Stack gap={8}>
@@ -80,9 +125,9 @@ export const Decoder = () => {
         <Flex align="center" gap="sm">
           <Button
             w={200}
-            color={isDecoding ? "red" : "indigo"}
+            color={isActive ? "red" : "indigo"}
             onClick={() => {
-              if (isDecoding) {
+              if (isActive) {
                 setStream(null);
               } else {
                 getStream(selectedAudioInput ?? undefined);
@@ -90,7 +135,7 @@ export const Decoder = () => {
             }}
             disabled={isLoading}
           >
-            {isDecoding ? "STOP" : "START"}
+            {isActive ? "STOP" : "START"}
           </Button>
           {isLoading && (
             <Box
@@ -103,43 +148,71 @@ export const Decoder = () => {
       </Flex>
 
       <Stack gap={0}>
-        <Box pos="relative">
-          {stream ? (
-            <Scope
-              stream={stream}
-              setFilterFreq={setFilterFreq}
-              filterFreq={filterFreq}
-              filterWidth={filterWidth}
-              gain={gain}
-              decodeWindowSeconds={decodeWindowSeconds}
-            />
-          ) : (
-            <Box
-              style={{
-                height: "256px",
-                width: "100%",
-                background: "var(--mantine-color-dark-9)",
-              }}
+        <Flex gap={0}>
+          <Box pos="relative" style={{ flex: 1, minWidth: 0 }}>
+            {stream ? (
+              <Scope
+                stream={stream}
+                setFilterFreq={setFilterFreq}
+                filterFreq={isPileup ? null : filterFreq}
+                filterWidth={filterWidth}
+                gain={gain}
+                decodeWindowSeconds={effectiveWindowSeconds}
+                frequencyDataRef={frequencyDataRef}
+                disableInteraction={isPileup}
+                height={scopeHeight}
+                {...(isPileup && { minFreqHz: PILEUP_MIN_FREQ_HZ, maxFreqHz: PILEUP_MAX_FREQ_HZ })}
+              />
+            ) : (
+              <Box
+                style={{
+                  height: `${scopeHeight}px`,
+                  width: "100%",
+                  background: "var(--mantine-color-dark-9)",
+                }}
+              />
+            )}
+            {isPileup && stream && (
+              <PileupOverlay
+                peakFrequencies={pileupPeaks}
+                segmentsMap={segmentsMap}
+                isDecoding={isPileupDecoding}
+                decodeWindowSeconds={effectiveWindowSeconds}
+                minFreqHz={PILEUP_MIN_FREQ_HZ}
+                maxFreqHz={PILEUP_MAX_FREQ_HZ}
+              />
+            )}
+          </Box>
+          {isPileup && stream && (
+            <Histogram
+              frequencyDataRef={frequencyDataRef}
+              peakFrequencies={pileupPeaks}
+              onPeaksChanged={setPileupPeaks}
+              height={scopeHeight}
+              minFreqHz={PILEUP_MIN_FREQ_HZ}
+              maxFreqHz={PILEUP_MAX_FREQ_HZ}
             />
           )}
-        </Box>
+        </Flex>
 
-        <Stack gap={0}>
-          <DecodeDisplay
-            segments={currentSegments}
-            isDecoding={isDecoding}
-            decodeWindowSeconds={decodeWindowSeconds}
-          />
-
-          {showJapaneseDisplay && (
+        {!isPileup && (
+          <Stack gap={0}>
             <DecodeDisplay
-              segments={currentSegmentsJa}
+              segments={currentSegments}
               isDecoding={isDecoding}
-              backgroundColor="#36021e"
               decodeWindowSeconds={decodeWindowSeconds}
             />
-          )}
-        </Stack>
+
+            {showJapaneseDisplay && (
+              <DecodeDisplay
+                segments={currentSegmentsJa}
+                isDecoding={isDecoding}
+                backgroundColor="#36021e"
+                decodeWindowSeconds={decodeWindowSeconds}
+              />
+            )}
+          </Stack>
+        )}
       </Stack>
 
       <Flex gap="md" justify="flex-end" wrap="wrap">
@@ -169,54 +242,71 @@ export const Decoder = () => {
           onChange={(event) => setGain(Number(event.currentTarget.value))}
           rightSection={"dB"}
         />
-        <NativeSelect
-          label="WINDOW"
-          data={DECODE_WINDOW_OPTIONS.map((seconds) => ({
-            value: seconds.toString(),
-            label: seconds.toString(),
-          }))}
-          value={decodeWindowSeconds.toString()}
-          onChange={(event) =>
-            setDecodeWindowSeconds(
-              Number(event.currentTarget.value) as DecodeWindowSeconds,
-            )
-          }
-          rightSection={"s"}
-        />
-        <Tooltip label="Click the scope to enable the filter." withArrow>
-          <Box>
-            <NativeSelect
-              label="FIL WID"
-              data={[
-                {
-                  value: DEFAULT_DECODE_BANDWIDTH_HZ.toString(),
-                  label: `${DEFAULT_DECODE_BANDWIDTH_HZ} (OFF)`,
-                },
-                { value: "100", label: "100" },
-                { value: "150", label: "150" },
-                { value: "250", label: "250" },
-              ]}
-              value={activeFilterWidth.toString()}
-              onChange={(event) => {
-                const nextWidth = Number(event.currentTarget.value);
-                if (nextWidth === DEFAULT_DECODE_BANDWIDTH_HZ) {
-                  setFilterFreq(null);
-                  return;
-                }
+        {!isPileup && (
+          <NativeSelect
+            label="WINDOW"
+            data={DECODE_WINDOW_OPTIONS.map((seconds) => ({
+              value: seconds.toString(),
+              label: seconds.toString(),
+            }))}
+            value={decodeWindowSeconds.toString()}
+            onChange={(event) =>
+              setDecodeWindowSeconds(
+                Number(event.currentTarget.value) as DecodeWindowSeconds,
+              )
+            }
+            rightSection={"s"}
+          />
+        )}
+        {!isPileup && (
+          <Tooltip label="Click the scope to enable the filter." withArrow>
+            <Box>
+              <NativeSelect
+                label="FIL WID"
+                data={[
+                  {
+                    value: DEFAULT_DECODE_BANDWIDTH_HZ.toString(),
+                    label: `${DEFAULT_DECODE_BANDWIDTH_HZ} (OFF)`,
+                  },
+                  { value: "100", label: "100" },
+                  { value: "150", label: "150" },
+                  { value: "250", label: "250" },
+                ]}
+                value={activeFilterWidth.toString()}
+                onChange={(event) => {
+                  const nextWidth = Number(event.currentTarget.value);
+                  if (nextWidth === DEFAULT_DECODE_BANDWIDTH_HZ) {
+                    setFilterFreq(null);
+                    return;
+                  }
 
-                setFilterWidth(nextWidth);
-              }}
-              disabled={!isFilterEnabled}
-              rightSection={"Hz"}
-            />
-          </Box>
-        </Tooltip>
+                  setFilterWidth(nextWidth);
+                }}
+                disabled={!isFilterEnabled}
+                rightSection={"Hz"}
+              />
+            </Box>
+          </Tooltip>
+        )}
+        {!isPileup && (
+          <NativeSelect
+            label="CW LANG"
+            data={["EN", "EN/JA"]}
+            value={language}
+            onChange={(event) =>
+              setLanguage(event.currentTarget.value as "EN" | "EN/JA")
+            }
+          />
+        )}
         <NativeSelect
-          label="CW LANG"
-          data={["EN", "EN/JA"]}
-          value={language}
+          label="MODE"
+          data={[
+            { value: "normal", label: "Normal" },
+            { value: "pileup", label: "Pileup" },
+          ]}
+          value={mode}
           onChange={(event) =>
-            setLanguage(event.currentTarget.value as "EN" | "EN/JA")
+            setMode(event.currentTarget.value as DecoderMode)
           }
         />
       </Flex>

@@ -1,0 +1,107 @@
+import { useEffect, useState, useRef, type MutableRefObject } from "react";
+import { runInference } from "../utils/inference";
+import { waitForNextAudioChunk } from "../useDecode";
+import type { AudioBufferState } from "./useAudioProcessing";
+import type { TextSegment } from "../utils/textDecoder";
+
+type UsePileupDecodeParams = {
+  stream: MediaStream | null;
+  loaded: boolean;
+  audioBufferRef: MutableRefObject<AudioBufferState>;
+  peakFrequenciesRef: MutableRefObject<number[]>;
+  enabled: boolean;
+  decodeWindowSeconds: number;
+};
+
+type UsePileupDecodeResult = {
+  segmentsMap: Record<number, TextSegment[]>;
+  isDecoding: boolean;
+};
+
+export const usePileupDecode = ({
+  stream,
+  loaded,
+  audioBufferRef,
+  peakFrequenciesRef,
+  enabled,
+}: UsePileupDecodeParams): UsePileupDecodeResult => {
+  const [segmentsMap, setSegmentsMap] = useState<Record<number, TextSegment[]>>(
+    {},
+  );
+  const [isDecoding, setIsDecoding] = useState(false);
+  const segmentsMapRef = useRef(segmentsMap);
+
+  useEffect(() => {
+    segmentsMapRef.current = segmentsMap;
+  }, [segmentsMap]);
+
+  useEffect(() => {
+    if (!stream || !loaded || !enabled) {
+      setIsDecoding(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsDecoding(true);
+
+    const decodeLoop = async () => {
+      let lastAudioVersion = -1;
+
+      while (!cancelled) {
+        const audioVersion = audioBufferRef.current.version;
+        if (audioVersion === lastAudioVersion) {
+          await waitForNextAudioChunk(
+            audioBufferRef,
+            audioVersion,
+            () => cancelled,
+          );
+          if (cancelled) return;
+          continue;
+        }
+        lastAudioVersion = audioVersion;
+
+        const peaks = peakFrequenciesRef.current;
+        if (peaks.length === 0) continue;
+
+        // Clean up stale entries
+        const currentMap = segmentsMapRef.current;
+        const staleKeys = Object.keys(currentMap)
+          .map(Number)
+          .filter((k) => !peaks.some((p) => Math.abs(p - k) < 30));
+        if (staleKeys.length > 0) {
+          setSegmentsMap((prev) => {
+            const next = { ...prev };
+            for (const k of staleKeys) delete next[k];
+            return next;
+          });
+        }
+
+        // Decode each peak sequentially with spectrogram bin shifting
+        for (const freq of peaks) {
+          if (cancelled) return;
+
+          const segments = await runInference(
+            audioBufferRef.current.samples,
+            null,
+            0,
+            "en",
+            freq,
+          );
+          if (cancelled) return;
+
+          setSegmentsMap((prev) => ({ ...prev, [freq]: segments }));
+        }
+      }
+    };
+
+    void decodeLoop();
+
+    return () => {
+      cancelled = true;
+      setIsDecoding(false);
+      setSegmentsMap({});
+    };
+  }, [stream, loaded, enabled, audioBufferRef, peakFrequenciesRef]);
+
+  return { segmentsMap, isDecoding };
+};
