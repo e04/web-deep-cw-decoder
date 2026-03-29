@@ -1,7 +1,6 @@
 export const ENGLISH_CONFIG = {
   MODEL_FILE: "model_en.onnx",
   VOCABULARY: [
-    "[UNK]",
     "/",
     "0",
     "1",
@@ -40,32 +39,14 @@ export const ENGLISH_CONFIG = {
     "X",
     "Y",
     "Z",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    " ",
   ],
-  ABBREVIATION: {
-    "": "AR",
-    "": "BT",
-    "": "HH",
-    "": "KN",
-    "": "SK",
-    "": "BK",
-    "": "UR",
-  },
+  BLANK_INDEX: 38,
+  ABBREVIATION: {},
 };
 
 export const JAPANESE_CONFIG = {
   MODEL_FILE: "model_ja.onnx",
   VOCABULARY: [
-    "[UNK]",
-    " ",
-    "）",
     "0",
     "1",
     "2",
@@ -130,14 +111,11 @@ export const JAPANESE_CONFIG = {
     "ヲ",
     "ン",
     "ー",
-    "本",
-    "訂",
-    "（",
-    " ",
+    "（", 
+    "）"
   ],
+  BLANK_INDEX: 66,
   ABBREVIATION: {
-    "本": "ﾎﾚ",
-    "訂": "ﾗﾀ",
   },
 };
 
