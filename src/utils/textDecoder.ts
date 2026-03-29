@@ -6,6 +6,8 @@ export type TextSegment = {
   isAbbreviation: boolean;
 };
 
+type DecoderConfig = typeof ENGLISH_CONFIG | typeof JAPANESE_CONFIG;
+
 function replaceConsecutiveChars(str: string): string {
   const regex = /(\S)\1+/g;
   return str.replace(regex, (match, p1) => {
@@ -13,11 +15,42 @@ function replaceConsecutiveChars(str: string): string {
   });
 }
 
+function decodeCtcForDisplay(
+  predIndices: number[],
+  vocabulary: string[],
+  blankIndex: number,
+): string {
+  const decodedChars: string[] = [];
+  let previousIndex: number | null = null;
+
+  for (const index of predIndices) {
+    if (index === blankIndex) {
+      decodedChars.push(" ");
+      previousIndex = null;
+      continue;
+    }
+
+    if (index === previousIndex) {
+      decodedChars.push(" ");
+      continue;
+    }
+
+    previousIndex = index;
+    decodedChars.push(vocabulary[index] ?? " ");
+  }
+
+  return decodedChars.join("");
+}
+
+function getDecoderConfig(lang: "en" | "ja"): DecoderConfig {
+  return lang === "ja" ? JAPANESE_CONFIG : ENGLISH_CONFIG;
+}
+
 function convertAbbreviationsWithSegments(
   str: string,
   lang: "en" | "ja" = "en"
 ): TextSegment[] {
-  const config = lang === "ja" ? JAPANESE_CONFIG : ENGLISH_CONFIG;
+  const config = getDecoderConfig(lang);
   const abbreviations = Object.entries(config.ABBREVIATION) as [string, string][];
   
   if (abbreviations.length === 0) {
@@ -73,7 +106,7 @@ export function decodePredictions(
   const [batchSize, timeSteps, numClasses] = predShape;
   const outputSegments: TextSegment[][] = [];
   
-  const config = lang === "ja" ? JAPANESE_CONFIG : ENGLISH_CONFIG;
+  const config = getDecoderConfig(lang);
   const vocabulary = config.VOCABULARY;
 
   for (let i = 0; i < batchSize; i++) {
@@ -94,10 +127,13 @@ export function decodePredictions(
       predIndices.push(maxIndex);
     }
 
-    const resText = predIndices.map((c) => vocabulary[c] || "").join("");
+    const resText =
+      "BLANK_INDEX" in config
+        ? decodeCtcForDisplay(predIndices, vocabulary, config.BLANK_INDEX)
+        : replaceConsecutiveChars(predIndices.map((c) => vocabulary[c] || "").join(""));
 
     const processedSegments = convertAbbreviationsWithSegments(
-      replaceConsecutiveChars(resText),
+      resText,
       lang
     );
 

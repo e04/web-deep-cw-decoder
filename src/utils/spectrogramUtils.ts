@@ -28,7 +28,7 @@ export function audioToSpectrogramTensor(
   audio: Float32Array,
   filterFreq: number | null,
   filterWidth: number
-): { data: Float32Array; dims: [number, number, number, 1] } | null {
+): { data: Float32Array; dims: [number, 1, number, number] } | null {
   let processedAudio = audio;
   if (filterFreq !== null && filterWidth > 0) {
     processedAudio = applyBandpassFilter(
@@ -58,7 +58,7 @@ export function audioToSpectrogramTensor(
 
   return {
     data: flattenedSpectrogram,
-    dims: [1, timeSteps, CROPPED_BINS, 1],
+    dims: [1, 1, timeSteps, CROPPED_BINS],
   };
 }
 
@@ -71,7 +71,7 @@ export function audioToShiftedSpectrogramTensor(
   audio: Float32Array,
   targetFreq: number,
   bandwidth: number = 50,
-): { data: Float32Array; dims: [number, number, number, 1] } | null {
+): { data: Float32Array; dims: [number, 1, number, number] } | null {
   const timeSteps = stft.getFrameCount(audio.length);
   if (timeSteps === 0) return null;
 
@@ -103,6 +103,6 @@ export function audioToShiftedSpectrogramTensor(
 
   return {
     data: flattenedSpectrogram,
-    dims: [1, timeSteps, CROPPED_BINS, 1],
+    dims: [1, 1, timeSteps, CROPPED_BINS],
   };
 }
