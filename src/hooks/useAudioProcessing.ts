@@ -24,7 +24,6 @@ function audioCallback(
 
 export function useAudioProcessing(
   stream: MediaStream | null,
-  gain: number,
   bufferDurationSeconds: number
 ): React.MutableRefObject<AudioBufferState> {
   const audioBufferRef = useRef<AudioBufferState>({
@@ -46,8 +45,6 @@ export function useAudioProcessing(
 
     const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
     const source = audioContext.createMediaStreamSource(stream);
-    const gainNode = audioContext.createGain();
-    gainNode.gain.value = Math.pow(10, gain / 20);
 
     const scriptProcessor = audioContext.createScriptProcessor(
       AUDIO_CHUNK_SAMPLES,
@@ -57,8 +54,7 @@ export function useAudioProcessing(
     scriptProcessor.onaudioprocess = (event) =>
       audioCallback(event, audioBufferRef.current);
 
-    source.connect(gainNode);
-    gainNode.connect(scriptProcessor);
+    source.connect(scriptProcessor);
     scriptProcessor.connect(audioContext.destination);
 
     audioContextRef.current = audioContext;
@@ -74,7 +70,7 @@ export function useAudioProcessing(
         audioContextRef.current = null;
       }
     };
-  }, [stream, gain]);
+  }, [stream]);
 
   return audioBufferRef;
 }
