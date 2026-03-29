@@ -13,7 +13,7 @@ const LoadProgressBar = ({ label, value }: LoadProgressBarProps) => {
         value={value}
         size="16px"
         radius={0}
-        color={value >= 100 ? "green.9" : "blue.7"}
+        color={value < 100 ? "blue.7" : "gray.8"}
       />
       <Box
         style={{
@@ -43,7 +43,7 @@ type LoadProgressBarsProps = {
 
 export function LoadProgressBars({ progress }: LoadProgressBarsProps) {
   return (
-    <Stack gap={2} w={220} p={2}>
+    <Stack gap={2} w={220}>
       <LoadProgressBar label="ORT" value={progress.ortPercent} />
       <LoadProgressBar label="MODEL EN" value={progress.modelEnPercent} />
       {progress.showJaModel && (
