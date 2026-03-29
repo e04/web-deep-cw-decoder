@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">DeepCW icon</title>
+  <desc id="desc">A dark radio-scope inspired icon with spectrogram bands and Morse code pulses.</desc>
+  <defs>
+    <linearGradient id="bgGradient" x1="96" y1="64" x2="416" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#182033" />
+      <stop offset="0.55" stop-color="#0d111c" />
+      <stop offset="1" stop-color="#06080d" />
+    </linearGradient>
+    <radialGradient id="coreGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(260 246) rotate(90) scale(210)">
+      <stop offset="0" stop-color="#113460" stop-opacity="0.95" />
+      <stop offset="0.52" stop-color="#0d1a31" stop-opacity="0.5" />
+      <stop offset="1" stop-color="#09101a" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="spectrogramGradient" x1="104" y1="348" x2="436" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#245dff" />
+      <stop offset="0.18" stop-color="#2f8fff" />
+      <stop offset="0.38" stop-color="#2fd6ff" />
+      <stop offset="0.58" stop-color="#38f2b2" />
+      <stop offset="0.78" stop-color="#ffd85a" />
+      <stop offset="1" stop-color="#ff6b57" />
+    </linearGradient>
+    <linearGradient id="sweepGradient" x1="96" y1="256" x2="448" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#245dff" stop-opacity="0" />
+      <stop offset="0.16" stop-color="#2f8fff" stop-opacity="0.82" />
+      <stop offset="0.36" stop-color="#2fd6ff" stop-opacity="0.92" />
+      <stop offset="0.56" stop-color="#38f2b2" stop-opacity="0.96" />
+      <stop offset="0.78" stop-color="#ffd85a" stop-opacity="0.9" />
+      <stop offset="1" stop-color="#ff6b57" stop-opacity="0" />
+    </linearGradient>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" fill="#030507" />
+  <rect width="512" height="512" fill="url(#bgGradient)" />
+  <rect width="512" height="512" fill="url(#coreGlow)" />
+
+  <g transform="translate(-16 -1)">
+    <g stroke="url(#sweepGradient)" stroke-width="28" stroke-linecap="round" filter="url(#softGlow)" opacity="0.95">
+      <path d="M96 170H130" />
+      <path d="M172 170H268" />
+      <path d="M314 170H348" />
+      <path d="M388 170H448" />
+
+      <path d="M120 214H220" />
+      <path d="M262 214H296" />
+      <path d="M338 214H372" />
+      <path d="M408 214H452" />
+
+      <path d="M86 256H120" />
+      <path d="M162 256H196" />
+      <path d="M236 256H356" />
+      <path d="M400 256H434" />
+
+      <path d="M112 300H146" />
+      <path d="M186 300H246" />
+      <path d="M288 300H322" />
+      <path d="M362 300H458" />
+
+      <path d="M98 344H194" />
+      <path d="M234 344H268" />
+      <path d="M310 344H370" />
+      <path d="M414 344H448" />
+    </g>
+  </g>
+</svg>
