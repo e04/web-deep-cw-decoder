@@ -22,3 +22,10 @@ node_modules
 *.sw?
 
 /dist
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
