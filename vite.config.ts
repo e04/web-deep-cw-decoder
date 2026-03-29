@@ -4,4 +4,7 @@ export default defineConfig({
   plugins: [react()],
   base: "./",
   assetsInclude: ["**/*.onnx"],
+  worker: {
+    format: "es",
+  },
 });

@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef, type MutableRefObject } from "react";
 import { runInference } from "../utils/inference";
+import type { InferenceBackend } from "../utils/inferenceProtocol";
 import { waitForNextAudioChunk } from "../useDecode";
 import type { AudioBufferState } from "./useAudioProcessing";
 
 type UsePileupDecodeParams = {
   stream: MediaStream | null;
   loaded: boolean;
+  backend: InferenceBackend;
   audioBufferRef: MutableRefObject<AudioBufferState>;
   peakFrequenciesRef: MutableRefObject<number[]>;
   enabled: boolean;
@@ -20,6 +22,7 @@ type UsePileupDecodeResult = {
 export const usePileupDecode = ({
   stream,
   loaded,
+  backend,
   audioBufferRef,
   peakFrequenciesRef,
   enabled,
@@ -81,8 +84,11 @@ export const usePileupDecode = ({
             audioBufferRef.current.samples,
             null,
             0,
-            "en",
-            freq,
+            {
+              lang: "en",
+              backend,
+              shiftTargetFreq: freq,
+            },
           );
           if (cancelled) return;
 
@@ -98,7 +104,7 @@ export const usePileupDecode = ({
       setIsDecoding(false);
       setTextMap({});
     };
-  }, [stream, loaded, enabled, audioBufferRef, peakFrequenciesRef]);
+  }, [audioBufferRef, backend, enabled, loaded, peakFrequenciesRef, stream]);
 
   return { textMap, isDecoding };
 };

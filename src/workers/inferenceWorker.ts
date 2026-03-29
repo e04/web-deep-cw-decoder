@@ -1,10 +1,26 @@
 /// <reference lib="webworker" />
-import * as ort from "onnxruntime-web";
-import { audioToSpectrogramTensor, audioToShiftedSpectrogramTensor } from "../utils/spectrogramUtils";
-import { decodePredictions } from "../utils/textDecoder";
-import { ENGLISH_CONFIG, JAPANESE_CONFIG } from "../const";
+import type * as Ort from "onnxruntime-web";
 
-type Lang = "en" | "ja";
+import {
+  ENGLISH_CONFIG,
+  JAPANESE_CONFIG,
+} from "../const";
+import {
+  type InferenceBackend,
+  type Lang,
+  type WorkerRequest,
+  type WorkerResponse,
+} from "../utils/inferenceProtocol";
+import {
+  audioToShiftedSpectrogramTensor,
+  audioToSpectrogramTensor,
+} from "../utils/spectrogramUtils";
+import { decodePredictions } from "../utils/textDecoder";
+
+type OrtModule = typeof Ort;
+
+const ORT_WASM_PATH =
+  "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.0/dist/";
 
 // Dynamic model URLs using Vite's import.meta.url
 const MODEL_URLS: Record<Lang, string> = {
@@ -12,37 +28,58 @@ const MODEL_URLS: Record<Lang, string> = {
   ja: new URL(`../${JAPANESE_CONFIG.MODEL_FILE}`, import.meta.url).href,
 };
 
-type WorkerRequest =
-  | { id: number; type: "loadModel"; lang: Lang }
-  | {
-      id: number;
-      type: "runInference";
-      lang: Lang;
-      audioBuffer: Float32Array;
-      filterFreq: number | null;
-      filterWidth: number;
-      shiftTargetFreq?: number;
-    };
+const ortModulePromises: Partial<Record<InferenceBackend, Promise<OrtModule>>> =
+  {};
 
-type WorkerResponse =
-  | { id: number; type: "modelLoaded" }
-  | { id: number; type: "inferenceResult"; text: string }
-  | { id: number; type: "error"; error: string };
-
-const sessions: Record<Lang, ort.InferenceSession | null> = {
-  en: null,
-  ja: null,
+const sessions: Record<
+  InferenceBackend,
+  Record<Lang, Ort.InferenceSession | null>
+> = {
+  wasm: {
+    en: null,
+    ja: null,
+  },
+  webgpu: {
+    en: null,
+    ja: null,
+  },
 };
 
-async function ensureSession(lang: Lang): Promise<ort.InferenceSession> {
-  if (sessions[lang]) return sessions[lang]!;
-  // Fetch ORT assets from the CDN to avoid module fetch failures in the worker.
-  ort.env.wasm.wasmPaths =
-    "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.0/dist/";
-  sessions[lang] = await ort.InferenceSession.create(MODEL_URLS[lang], {
-    executionProviders: ["wasm"],
+async function getOrtModule(backend: InferenceBackend): Promise<OrtModule> {
+  const cachedModule = ortModulePromises[backend];
+  if (cachedModule) return cachedModule;
+
+  const modulePromise = (async () => {
+    const ort = backend === "webgpu"
+      ? await import("onnxruntime-web/webgpu")
+      : await import("onnxruntime-web/wasm");
+
+    // Fetch ORT assets from the CDN to avoid module fetch failures in the worker.
+    ort.env.wasm.wasmPaths = ORT_WASM_PATH;
+
+    return ort as OrtModule;
+  })();
+
+  ortModulePromises[backend] = modulePromise;
+
+  return modulePromise;
+}
+
+async function ensureSession(
+  lang: Lang,
+  backend: InferenceBackend,
+): Promise<Ort.InferenceSession> {
+  const existingSession = sessions[backend][lang];
+  if (existingSession) return existingSession;
+
+  const ort = await getOrtModule(backend);
+  const session = await ort.InferenceSession.create(MODEL_URLS[lang], {
+    executionProviders: [backend],
   });
-  return sessions[lang]!;
+
+  sessions[backend][lang] = session;
+
+  return session;
 }
 
 async function handleRunInference(
@@ -50,9 +87,11 @@ async function handleRunInference(
   filterFreq: number | null,
   filterWidth: number,
   lang: Lang,
+  backend: InferenceBackend,
   shiftTargetFreq?: number,
 ): Promise<string> {
-  const session = await ensureSession(lang);
+  const ort = await getOrtModule(backend);
+  const session = await ensureSession(lang, backend);
 
   const spectrogramInput = shiftTargetFreq != null
     ? audioToShiftedSpectrogramTensor(audioBuffer, shiftTargetFreq)
@@ -75,22 +114,24 @@ async function handleRunInference(
   const decodedTexts = decodePredictions(
     outputTensor.data,
     outputTensor.dims,
-    lang
+    lang,
   );
 
   return decodedTexts.length > 0 ? decodedTexts[0] : "";
 }
 
-const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope;
+const ctx: DedicatedWorkerGlobalScope =
+  self as unknown as DedicatedWorkerGlobalScope;
 
 ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const message = event.data;
+  const requestId = message.id;
 
   const respond = (response: WorkerResponse) => ctx.postMessage(response);
 
   try {
     if (message.type === "loadModel") {
-      await ensureSession(message.lang);
+      await ensureSession(message.lang, message.backend);
       respond({ id: message.id, type: "modelLoaded" });
       return;
     }
@@ -101,6 +142,7 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         message.filterFreq,
         message.filterWidth,
         message.lang,
+        message.backend,
         message.shiftTargetFreq,
       );
       respond({ id: message.id, type: "inferenceResult", text });
@@ -108,14 +150,14 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     }
 
     respond({
-      id: (message as WorkerRequest).id,
+      id: requestId,
       type: "error",
       error: "Unsupported worker message type.",
     });
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown worker error";
-    respond({ id: message.id, type: "error", error: errorMessage });
+    respond({ id: requestId, type: "error", error: errorMessage });
   }
 };
 
