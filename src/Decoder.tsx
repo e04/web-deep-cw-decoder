@@ -13,6 +13,7 @@ import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
 import { useAudioProcessing } from "./hooks/useAudioProcessing";
 import { usePileupDecode } from "./hooks/usePileupDecode";
+import { usePersistedState } from "./hooks/usePersistedState";
 import { DecodeDisplay } from "./DecodeDisplay";
 import { Histogram } from "./Histogram";
 import { PileupOverlay } from "./PileupOverlay";
@@ -22,24 +23,68 @@ import {
   INFERENCE_BACKEND_OPTIONS,
   type InferenceBackend,
 } from "./utils/inferenceProtocol";
+import {
+  hasMatchingOption,
+  parseNumberOption,
+  parseStringOption,
+} from "./utils/optionUtils";
 
 type DecoderMode = "normal" | "pileup";
+type DecoderLanguage = "EN" | "EN/JA";
+
+const GAIN_OPTIONS = [0, 20] as const;
+const FILTER_WIDTH_OPTIONS = [100, 150, 250] as const;
+const MODE_OPTIONS = ["normal", "pileup"] as const;
+const LANGUAGE_OPTIONS: readonly DecoderLanguage[] = ["EN", "EN/JA"];
+const BACKEND_OPTIONS: readonly InferenceBackend[] =
+  INFERENCE_BACKEND_OPTIONS.map((option) => option.value);
 
 export const Decoder = () => {
-  const [mode, setMode] = useState<DecoderMode>("normal");
+  const [mode, setMode] = usePersistedState<DecoderMode>(
+    "decoder.mode",
+    "normal",
+    (value): value is DecoderMode => hasMatchingOption(value, MODE_OPTIONS),
+  );
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [filterFreq, setFilterFreq] = useState<number | null>(null);
-  const [filterWidth, setFilterWidth] = useState<number>(250);
-  const [gain, setGain] = useState<number>(0);
-  const [language, setLanguage] = useState<"EN" | "EN/JA">("EN");
-  const [backend, setBackend] = useState<InferenceBackend>("wasm");
+  const [filterWidth, setFilterWidth] = usePersistedState<number>(
+    "decoder.filterWidth",
+    250,
+    (value): value is number => hasMatchingOption(value, FILTER_WIDTH_OPTIONS),
+  );
+  const [gain, setGain] = usePersistedState<number>(
+    "decoder.gain",
+    0,
+    (value): value is number => hasMatchingOption(value, GAIN_OPTIONS),
+  );
+  const [language, setLanguage] = usePersistedState<DecoderLanguage>(
+    "decoder.language",
+    "EN",
+    (value): value is DecoderLanguage =>
+      hasMatchingOption(value, LANGUAGE_OPTIONS),
+  );
+  const [backend, setBackend] = usePersistedState<InferenceBackend>(
+    "decoder.backend",
+    "wasm",
+    (value): value is InferenceBackend =>
+      hasMatchingOption(value, BACKEND_OPTIONS),
+  );
   const [decodeWindowSeconds, setDecodeWindowSeconds] =
-    useState<DecodeWindowSeconds>(DEFAULT_DECODE_WINDOW_S);
+    usePersistedState<DecodeWindowSeconds>(
+      "decoder.decodeWindowSeconds",
+      DEFAULT_DECODE_WINDOW_S,
+      (value): value is DecodeWindowSeconds =>
+        hasMatchingOption(value, DECODE_WINDOW_OPTIONS),
+    );
 
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>(
     [],
   );
-  const [selectedAudioInput, _setSelectedAudioInput] = useState<string>("");
+  const [selectedAudioInput, _setSelectedAudioInput] = usePersistedState<string>(
+    "decoder.selectedAudioInput",
+    "",
+    (value): value is string => typeof value === "string",
+  );
 
   const [pileupPeaks, setPileupPeaks] = useState<number[]>([]);
   const pileupPeaksRef = useRef<number[]>([]);
@@ -58,6 +103,16 @@ export const Decoder = () => {
       setPileupPeaks([]);
     }
   }, [isPileup]);
+
+  useEffect(() => {
+    if (
+      selectedAudioInput &&
+      audioInputDevices.length > 0 &&
+      !audioInputDevices.some((device) => device.deviceId === selectedAudioInput)
+    ) {
+      _setSelectedAudioInput("");
+    }
+  }, [audioInputDevices, selectedAudioInput]);
 
   const effectiveWindowSeconds = isPileup ? PILEUP_WINDOW_S : decodeWindowSeconds;
 
@@ -237,113 +292,135 @@ export const Decoder = () => {
         )}
       </Stack>
 
-      <Flex gap="md" justify="flex-end" wrap="wrap">
-        <Tooltip label="Available after starting the decoder." withArrow>
-          <Box>
-            <NativeSelect
-              w={200}
-              label="INPUT"
-              data={audioInputDevices.map((device) => ({
-                value: device.deviceId,
-                label:
-                  device.label ||
-                  `Device ${audioInputDevices.indexOf(device) + 1}`,
-              }))}
-              value={selectedAudioInput}
-              onChange={(event) =>
-                setSelectedAudioInput(event.currentTarget.value)
-              }
-              disabled={!stream}
-            />
-          </Box>
-        </Tooltip>
-        <NativeSelect
-          label="GAIN"
-          data={["0", "20"]}
-          value={gain.toString()}
-          onChange={(event) => setGain(Number(event.currentTarget.value))}
-          rightSection={"dB"}
-        />
-        {!isPileup && (
-          <Tooltip label="Shorter windows are more accurate." withArrow>
-            <Box>
-              <NativeSelect
-                label="WINDOW"
-                data={DECODE_WINDOW_OPTIONS.map((seconds) => ({
-                  value: seconds.toString(),
-                  label: seconds.toString(),
-                }))}
-                value={decodeWindowSeconds.toString()}
-                onChange={(event) =>
-                  setDecodeWindowSeconds(
-                    Number(event.currentTarget.value) as DecodeWindowSeconds,
-                  )
-                }
-                rightSection={"s"}
-              />
-            </Box>
-          </Tooltip>
-        )}
-        {!isPileup && (
-          <Tooltip label="Click the scope to enable the filter." withArrow>
-            <Box>
-              <NativeSelect
-                label="FIL WID"
-                data={[
-                  {
-                    value: DEFAULT_DECODE_BANDWIDTH_HZ.toString(),
-                    label: `${DEFAULT_DECODE_BANDWIDTH_HZ} (OFF)`,
-                  },
-                  { value: "100", label: "100" },
-                  { value: "150", label: "150" },
-                  { value: "250", label: "250" },
-                ]}
-                value={activeFilterWidth.toString()}
-                onChange={(event) => {
-                  const nextWidth = Number(event.currentTarget.value);
-                  if (nextWidth === DEFAULT_DECODE_BANDWIDTH_HZ) {
-                    setFilterFreq(null);
-                    return;
-                  }
-
-                  setFilterWidth(nextWidth);
-                }}
-                disabled={!isFilterEnabled}
-                rightSection={"Hz"}
-              />
-            </Box>
-          </Tooltip>
-        )}
-        {!isPileup && (
+      <Stack gap="xs" align="flex-end">
+        <Flex gap="md" justify="flex-end" wrap="wrap">
           <NativeSelect
-            label="CW LANG"
-            data={["EN", "EN/JA"]}
-            value={language}
-            onChange={(event) =>
-              setLanguage(event.currentTarget.value as "EN" | "EN/JA")
-            }
+            label="ENGINE"
+            data={INFERENCE_BACKEND_OPTIONS}
+            value={backend}
+            onChange={(event) => {
+              const nextBackend = parseStringOption(
+                event.currentTarget.value,
+                BACKEND_OPTIONS,
+              );
+              if (nextBackend !== undefined) {
+                setBackend(nextBackend);
+              }
+            }}
           />
+          <Tooltip label="Available after starting the decoder." withArrow>
+            <Box>
+              <NativeSelect
+                w={200}
+                label="INPUT"
+                data={audioInputDevices.map((device) => ({
+                  value: device.deviceId,
+                  label:
+                    device.label ||
+                    `Device ${audioInputDevices.indexOf(device) + 1}`,
+                }))}
+                value={selectedAudioInput}
+                onChange={(event) =>
+                  setSelectedAudioInput(event.currentTarget.value)
+                }
+                disabled={!stream}
+              />
+            </Box>
+          </Tooltip>
+          <NativeSelect
+            label="GAIN"
+            data={["0", "20"]}
+            value={gain.toString()}
+            onChange={(event) => setGain(Number(event.currentTarget.value))}
+            rightSection={"dB"}
+          />
+          <NativeSelect
+            label="MODE"
+            data={[
+              { value: "normal", label: "Normal" },
+              { value: "pileup", label: "Pileup" },
+            ]}
+            value={mode}
+            onChange={(event) => {
+              const nextMode = parseStringOption(
+                event.currentTarget.value,
+                MODE_OPTIONS,
+              );
+              if (nextMode !== undefined) {
+                setMode(nextMode);
+              }
+            }}
+          />
+        </Flex>
+        {!isPileup && (
+          <Flex gap="md" justify="flex-end" wrap="wrap">
+            <Tooltip label="Shorter windows are more accurate." withArrow>
+              <Box>
+                <NativeSelect
+                  label="WINDOW"
+                  data={DECODE_WINDOW_OPTIONS.map((seconds) => ({
+                    value: seconds.toString(),
+                    label: seconds.toString(),
+                  }))}
+                  value={decodeWindowSeconds.toString()}
+                  onChange={(event) => {
+                    const nextWindowSeconds = parseNumberOption(
+                      event.currentTarget.value,
+                      DECODE_WINDOW_OPTIONS,
+                    );
+                    if (nextWindowSeconds !== undefined) {
+                      setDecodeWindowSeconds(nextWindowSeconds);
+                    }
+                  }}
+                  rightSection={"s"}
+                />
+              </Box>
+            </Tooltip>
+            <Tooltip label="Click the scope to enable the filter." withArrow>
+              <Box>
+                <NativeSelect
+                  label="FIL WID"
+                  data={[
+                    {
+                      value: DEFAULT_DECODE_BANDWIDTH_HZ.toString(),
+                      label: `${DEFAULT_DECODE_BANDWIDTH_HZ} (OFF)`,
+                    },
+                    { value: "100", label: "100" },
+                    { value: "150", label: "150" },
+                    { value: "250", label: "250" },
+                  ]}
+                  value={activeFilterWidth.toString()}
+                  onChange={(event) => {
+                    const nextWidth = Number(event.currentTarget.value);
+                    if (nextWidth === DEFAULT_DECODE_BANDWIDTH_HZ) {
+                      setFilterFreq(null);
+                      return;
+                    }
+
+                    setFilterWidth(nextWidth);
+                  }}
+                  disabled={!isFilterEnabled}
+                  rightSection={"Hz"}
+                />
+              </Box>
+            </Tooltip>
+            <NativeSelect
+              label="CW LANG"
+              data={["EN", "EN/JA"]}
+              value={language}
+              onChange={(event) => {
+                const nextLanguage = parseStringOption(
+                  event.currentTarget.value,
+                  LANGUAGE_OPTIONS,
+                );
+                if (nextLanguage !== undefined) {
+                  setLanguage(nextLanguage);
+                }
+              }}
+            />
+          </Flex>
         )}
-        <NativeSelect
-          label="ENGINE"
-          data={INFERENCE_BACKEND_OPTIONS}
-          value={backend}
-          onChange={(event) =>
-            setBackend(event.currentTarget.value as InferenceBackend)
-          }
-        />
-        <NativeSelect
-          label="MODE"
-          data={[
-            { value: "normal", label: "Normal" },
-            { value: "pileup", label: "Pileup" },
-          ]}
-          value={mode}
-          onChange={(event) =>
-            setMode(event.currentTarget.value as DecoderMode)
-          }
-        />
-      </Flex>
+      </Stack>
     </Stack>
   );
 };
