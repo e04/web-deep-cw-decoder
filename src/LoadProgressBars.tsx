@@ -42,13 +42,23 @@ type LoadProgressBarsProps = {
 };
 
 export function LoadProgressBars({ progress }: LoadProgressBarsProps) {
+  const bars = [
+    { label: "ORT", value: progress.ortPercent },
+    { label: "MODEL EN", value: progress.modelEnPercent },
+    ...(progress.showJaModel
+      ? [{ label: "MODEL JA", value: progress.modelJaPercent }]
+      : []),
+  ].filter(({ value }) => value < 100);
+
+  if (bars.length === 0) {
+    return null;
+  }
+
   return (
     <Stack gap={2} w={220}>
-      <LoadProgressBar label="ORT" value={progress.ortPercent} />
-      <LoadProgressBar label="MODEL EN" value={progress.modelEnPercent} />
-      {progress.showJaModel && (
-        <LoadProgressBar label="MODEL JA" value={progress.modelJaPercent} />
-      )}
+      {bars.map(({ label, value }) => (
+        <LoadProgressBar key={label} label={label} value={value} />
+      ))}
     </Stack>
   );
 }
