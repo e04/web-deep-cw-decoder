@@ -34,7 +34,6 @@ import {
 type DecoderMode = "normal" | "pileup";
 type DecoderLanguage = "EN" | "EN/JA";
 
-const GAIN_OPTIONS = [0, 20] as const;
 const FILTER_WIDTH_OPTIONS = [100, 150, 250] as const;
 const MODE_OPTIONS = ["normal", "pileup"] as const;
 const LANGUAGE_OPTIONS: readonly DecoderLanguage[] = ["EN", "EN/JA"];
@@ -53,11 +52,6 @@ export const Decoder = () => {
     "decoder.filterWidth",
     250,
     (value): value is number => hasMatchingOption(value, FILTER_WIDTH_OPTIONS),
-  );
-  const [gain, setGain] = usePersistedState<number>(
-    "decoder.gain",
-    0,
-    (value): value is number => hasMatchingOption(value, GAIN_OPTIONS),
   );
   const [language, setLanguage] = usePersistedState<DecoderLanguage>(
     "decoder.language",
@@ -119,7 +113,7 @@ export const Decoder = () => {
   const effectiveWindowSeconds = isPileup ? PILEUP_WINDOW_S : decodeWindowSeconds;
   const progressLanguage = isPileup ? "EN" : language;
 
-  const audioBufferRef = useAudioProcessing(stream, gain, effectiveWindowSeconds);
+  const audioBufferRef = useAudioProcessing(stream, effectiveWindowSeconds);
   const loadProgress = useLoadProgress(backend, progressLanguage);
 
   const {
@@ -230,7 +224,6 @@ export const Decoder = () => {
                 setFilterFreq={setFilterFreq}
                 filterFreq={isPileup ? null : filterFreq}
                 filterWidth={filterWidth}
-                gain={gain}
                 decodeWindowSeconds={effectiveWindowSeconds}
                 frequencyDataRef={frequencyDataRef}
                 disableInteraction={isPileup}
@@ -325,13 +318,6 @@ export const Decoder = () => {
               />
             </Box>
           </Tooltip>
-          <NativeSelect
-            label="GAIN"
-            data={["0", "20"]}
-            value={gain.toString()}
-            onChange={(event) => setGain(Number(event.currentTarget.value))}
-            rightSection={"dB"}
-          />
           <NativeSelect
             label="MODE"
             data={[

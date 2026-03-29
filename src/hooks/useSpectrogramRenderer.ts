@@ -10,7 +10,6 @@ export type FrequencyDataState = {
 
 type UseSpectrogramRendererParams = {
   stream: MediaStream;
-  gain: number;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   decodeWindowSeconds: number;
   frequencyDataRef?: React.MutableRefObject<FrequencyDataState | null>;
@@ -20,7 +19,6 @@ type UseSpectrogramRendererParams = {
 
 export const useSpectrogramRenderer = ({
   stream,
-  gain,
   canvasRef,
   decodeWindowSeconds,
   frequencyDataRef,
@@ -59,16 +57,13 @@ export const useSpectrogramRenderer = ({
 
     const audioCtx: AudioContext = new AudioContext();
     const source = audioCtx.createMediaStreamSource(stream);
-    const gainNode = audioCtx.createGain();
-    gainNode.gain.value = Math.pow(10, gain / 20);
-    source.connect(gainNode);
 
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2 ** 12;
     analyser.smoothingTimeConstant = 0;
     analyser.minDecibels = -70;
     analyser.maxDecibels = -30;
-    gainNode.connect(analyser);
+    source.connect(analyser);
 
     nodesRef.current = { audioCtx, source, analyser };
 
@@ -198,5 +193,5 @@ export const useSpectrogramRenderer = ({
         nodesRef.current = null;
       }
     };
-  }, [stream, gain, canvasRef, frequencyDataRef]);
+  }, [stream, canvasRef, frequencyDataRef]);
 };

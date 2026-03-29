@@ -11,7 +11,6 @@ type ScopeProps = {
   setFilterFreq: (freq: number | null) => void;
   filterFreq: number | null;
   filterWidth: number;
-  gain: number;
   decodeWindowSeconds: number;
   frequencyDataRef?: React.MutableRefObject<FrequencyDataState | null>;
   disableInteraction?: boolean;
@@ -26,7 +25,6 @@ export const Scope = ({
   setFilterFreq,
   filterFreq,
   filterWidth,
-  gain,
   decodeWindowSeconds,
   frequencyDataRef,
   disableInteraction,
@@ -37,7 +35,7 @@ export const Scope = ({
 }: ScopeProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  useSpectrogramRenderer({ stream, gain, canvasRef, decodeWindowSeconds, frequencyDataRef, minFreqHz, maxFreqHz });
+  useSpectrogramRenderer({ stream, canvasRef, decodeWindowSeconds, frequencyDataRef, minFreqHz, maxFreqHz });
 
   useCanvasInteraction({ canvasRef, filterFreq, setFilterFreq, filterWidth, enabled: !disableInteraction });
 
