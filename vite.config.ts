@@ -10,7 +10,7 @@ export default defineConfig({
     react(),
     VitePWA({
       injectRegister: "auto",
-      registerType: "autoUpdate",
+      registerType: "prompt",
       manifest: {
         name: "DeepCW",
         short_name: "DeepCW",
