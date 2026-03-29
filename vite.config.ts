@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  resolve: {
+    conditions: ["onnxruntime-web-use-extern-wasm"],
+  },
   plugins: [
     react(),
     VitePWA({
