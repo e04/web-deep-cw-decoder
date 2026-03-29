@@ -8,6 +8,7 @@ import {
 import {
   type InferenceBackend,
   type Lang,
+  type LoadProgressStage,
   type WorkerRequest,
   type WorkerResponse,
 } from "../utils/inferenceProtocol";
@@ -16,17 +17,33 @@ import {
   audioToSpectrogramTensor,
 } from "../utils/spectrogramUtils";
 import { decodePredictions } from "../utils/textDecoder";
+import ortWasmModuleUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs?url";
+import ortWasmBinaryUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm?url";
 
 type OrtModule = typeof Ort;
-
-const ORT_WASM_PATH =
-  "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.0/dist/";
 
 // Dynamic model URLs using Vite's import.meta.url
 const MODEL_URLS: Record<Lang, string> = {
   en: new URL(`../${ENGLISH_CONFIG.MODEL_FILE}`, import.meta.url).href,
   ja: new URL(`../${JAPANESE_CONFIG.MODEL_FILE}`, import.meta.url).href,
 };
+
+const ORT_WASM_PATHS = {
+  mjs: ortWasmModuleUrl,
+} as const;
+
+const modelDataPromises: Record<Lang, Promise<Uint8Array> | null> = {
+  en: null,
+  ja: null,
+};
+
+const modelDataCache: Record<Lang, Uint8Array | null> = {
+  en: null,
+  ja: null,
+};
+
+let ortBinaryPromise: Promise<Uint8Array> | null = null;
+let ortBinaryCache: Uint8Array | null = null;
 
 const ortModulePromises: Partial<Record<InferenceBackend, Promise<OrtModule>>> =
   {};
@@ -45,17 +62,133 @@ const sessions: Record<
   },
 };
 
-async function getOrtModule(backend: InferenceBackend): Promise<OrtModule> {
+function clampProgress(progress: number): number {
+  return Math.max(0, Math.min(progress, 1));
+}
+
+async function fetchBinaryWithProgress(
+  url: string,
+  onProgress?: (progress: number) => void,
+): Promise<Uint8Array> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch asset: ${response.status} ${response.statusText}`);
+  }
+
+  const totalBytes = Number(response.headers.get("content-length") ?? "0");
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const binary = new Uint8Array(await response.arrayBuffer());
+    onProgress?.(1);
+    return binary;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+  onProgress?.(0);
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+
+    chunks.push(value);
+    receivedBytes += value.byteLength;
+
+    if (totalBytes > 0) {
+      onProgress?.(clampProgress(receivedBytes / totalBytes));
+    }
+  }
+
+  const binary = new Uint8Array(receivedBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    binary.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  onProgress?.(1);
+  return binary;
+}
+
+async function getOrtBinary(
+  onProgress?: (progress: number) => void,
+): Promise<Uint8Array> {
+  if (ortBinaryCache) {
+    onProgress?.(1);
+    return ortBinaryCache;
+  }
+
+  const cachedPromise = ortBinaryPromise;
+  if (cachedPromise) {
+    const binary = await cachedPromise;
+    onProgress?.(1);
+    return binary;
+  }
+
+  const binaryPromise = fetchBinaryWithProgress(ortWasmBinaryUrl, onProgress)
+    .then((binary) => {
+      ortBinaryCache = binary;
+      return binary;
+    })
+    .catch((error) => {
+      ortBinaryPromise = null;
+      throw error;
+    });
+
+  ortBinaryPromise = binaryPromise;
+
+  return binaryPromise;
+}
+
+async function getModelData(
+  lang: Lang,
+  onProgress?: (progress: number) => void,
+): Promise<Uint8Array> {
+  const cachedModel = modelDataCache[lang];
+  if (cachedModel) {
+    onProgress?.(1);
+    return cachedModel;
+  }
+
+  const cachedPromise = modelDataPromises[lang];
+  if (cachedPromise) {
+    const model = await cachedPromise;
+    onProgress?.(1);
+    return model;
+  }
+
+  const modelPromise = fetchBinaryWithProgress(MODEL_URLS[lang], onProgress)
+    .then((model) => {
+      modelDataCache[lang] = model;
+      return model;
+    })
+    .catch((error) => {
+      modelDataPromises[lang] = null;
+      throw error;
+    });
+
+  modelDataPromises[lang] = modelPromise;
+
+  return modelPromise;
+}
+
+async function getOrtModule(
+  backend: InferenceBackend,
+  onProgress?: (progress: number) => void,
+): Promise<OrtModule> {
   const cachedModule = ortModulePromises[backend];
   if (cachedModule) return cachedModule;
 
   const modulePromise = (async () => {
+    const ortBinary = await getOrtBinary(onProgress);
     const ort = backend === "webgpu"
       ? await import("onnxruntime-web/webgpu")
       : await import("onnxruntime-web/wasm");
 
-    // Fetch ORT assets from the CDN to avoid module fetch failures in the worker.
-    ort.env.wasm.wasmPaths = ORT_WASM_PATH;
+    // Serve ORT assets from the app itself so decoding still works offline.
+    ort.env.wasm.wasmPaths = ORT_WASM_PATHS;
+    ort.env.wasm.wasmBinary = ortBinary;
 
     return ort as OrtModule;
   })();
@@ -68,12 +201,17 @@ async function getOrtModule(backend: InferenceBackend): Promise<OrtModule> {
 async function ensureSession(
   lang: Lang,
   backend: InferenceBackend,
+  onOrtProgress?: (progress: number) => void,
+  onModelProgress?: (progress: number) => void,
 ): Promise<Ort.InferenceSession> {
   const existingSession = sessions[backend][lang];
   if (existingSession) return existingSession;
 
-  const ort = await getOrtModule(backend);
-  const session = await ort.InferenceSession.create(MODEL_URLS[lang], {
+  const [ort, modelData] = await Promise.all([
+    getOrtModule(backend, onOrtProgress),
+    getModelData(lang, onModelProgress),
+  ]);
+  const session = await ort.InferenceSession.create(modelData, {
     executionProviders: [backend],
   });
 
@@ -128,10 +266,31 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const requestId = message.id;
 
   const respond = (response: WorkerResponse) => ctx.postMessage(response);
+  const reportProgress = (
+    stage: LoadProgressStage,
+    progress: number,
+    backend: InferenceBackend,
+    lang?: Lang,
+  ) => {
+    respond({
+      id: requestId,
+      type: "loadProgress",
+      stage,
+      backend,
+      lang,
+      progress: clampProgress(progress),
+    });
+  };
 
   try {
     if (message.type === "loadModel") {
-      await ensureSession(message.lang, message.backend);
+      await ensureSession(
+        message.lang,
+        message.backend,
+        (progress) => reportProgress("ort", progress, message.backend),
+        (progress) =>
+          reportProgress("model", progress, message.backend, message.lang),
+      );
       respond({ id: message.id, type: "modelLoaded" });
       return;
     }

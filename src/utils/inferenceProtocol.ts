@@ -1,6 +1,7 @@
 export type Lang = "en" | "ja";
 
 export type InferenceBackend = "wasm" | "webgpu";
+export type LoadProgressStage = "ort" | "model";
 
 export const INFERENCE_BACKEND_OPTIONS = [
   { value: "wasm", label: "WASM" },
@@ -21,6 +22,14 @@ export type WorkerRequest =
     };
 
 export type WorkerResponse =
+  | {
+      id: number;
+      type: "loadProgress";
+      stage: LoadProgressStage;
+      backend: InferenceBackend;
+      progress: number;
+      lang?: Lang;
+    }
   | { id: number; type: "modelLoaded" }
   | { id: number; type: "inferenceResult"; text: string }
   | { id: number; type: "error"; error: string };
