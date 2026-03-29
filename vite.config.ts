@@ -9,9 +9,9 @@ export default defineConfig({
       injectRegister: "auto",
       registerType: "autoUpdate",
       manifest: {
-        name: "web-deep-cw-decoder",
-        short_name: "CW Decoder",
-        description: "Browser-based real-time Morse code decoder.",
+        name: "DeepCW",
+        short_name: "DeepCW",
+        description: "Morse code decoder",
         theme_color: "#101113",
         background_color: "#101113",
         display: "standalone",
