@@ -17,8 +17,10 @@ import {
   audioToSpectrogramTensor,
 } from "../utils/spectrogramUtils";
 import { decodePredictions } from "../utils/textDecoder";
-import ortWasmModuleUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs?url";
-import ortWasmBinaryUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm?url";
+import ortWasmJsepModuleUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs?url";
+import ortWasmJsepBinaryUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm?url";
+import ortWasmAsyncifyModuleUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.mjs?url";
+import ortWasmAsyncifyBinaryUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm?url";
 
 type OrtModule = typeof Ort;
 
@@ -28,9 +30,28 @@ const MODEL_URLS: Record<Lang, string> = {
   ja: new URL(`../${JAPANESE_CONFIG.MODEL_FILE}`, import.meta.url).href,
 };
 
-const ORT_WASM_PATHS = {
-  mjs: ortWasmModuleUrl,
-} as const;
+const ORT_RUNTIME_ASSETS: Record<
+  InferenceBackend,
+  {
+    binaryUrl: string;
+    wasmPaths: {
+      mjs: string;
+    };
+  }
+> = {
+  wasm: {
+    binaryUrl: ortWasmJsepBinaryUrl,
+    wasmPaths: {
+      mjs: ortWasmJsepModuleUrl,
+    },
+  },
+  webgpu: {
+    binaryUrl: ortWasmAsyncifyBinaryUrl,
+    wasmPaths: {
+      mjs: ortWasmAsyncifyModuleUrl,
+    },
+  },
+};
 
 const modelDataPromises: Record<Lang, Promise<Uint8Array> | null> = {
   en: null,
@@ -42,8 +63,9 @@ const modelDataCache: Record<Lang, Uint8Array | null> = {
   ja: null,
 };
 
-let ortBinaryPromise: Promise<Uint8Array> | null = null;
-let ortBinaryCache: Uint8Array | null = null;
+const ortBinaryPromises: Partial<Record<InferenceBackend, Promise<Uint8Array>>> =
+  {};
+const ortBinaryCache: Partial<Record<InferenceBackend, Uint8Array>> = {};
 
 const ortModulePromises: Partial<Record<InferenceBackend, Promise<OrtModule>>> =
   {};
@@ -112,31 +134,36 @@ async function fetchBinaryWithProgress(
 }
 
 async function getOrtBinary(
+  backend: InferenceBackend,
   onProgress?: (progress: number) => void,
 ): Promise<Uint8Array> {
-  if (ortBinaryCache) {
+  const cachedBinary = ortBinaryCache[backend];
+  if (cachedBinary) {
     onProgress?.(1);
-    return ortBinaryCache;
+    return cachedBinary;
   }
 
-  const cachedPromise = ortBinaryPromise;
+  const cachedPromise = ortBinaryPromises[backend];
   if (cachedPromise) {
     const binary = await cachedPromise;
     onProgress?.(1);
     return binary;
   }
 
-  const binaryPromise = fetchBinaryWithProgress(ortWasmBinaryUrl, onProgress)
+  const binaryPromise = fetchBinaryWithProgress(
+    ORT_RUNTIME_ASSETS[backend].binaryUrl,
+    onProgress,
+  )
     .then((binary) => {
-      ortBinaryCache = binary;
+      ortBinaryCache[backend] = binary;
       return binary;
     })
     .catch((error) => {
-      ortBinaryPromise = null;
+      ortBinaryPromises[backend] = undefined;
       throw error;
     });
 
-  ortBinaryPromise = binaryPromise;
+  ortBinaryPromises[backend] = binaryPromise;
 
   return binaryPromise;
 }
@@ -181,13 +208,13 @@ async function getOrtModule(
   if (cachedModule) return cachedModule;
 
   const modulePromise = (async () => {
-    const ortBinary = await getOrtBinary(onProgress);
+    const ortBinary = await getOrtBinary(backend, onProgress);
     const ort = backend === "webgpu"
       ? await import("onnxruntime-web/webgpu")
       : await import("onnxruntime-web/wasm");
 
     // Serve ORT assets from the app itself so decoding still works offline.
-    ort.env.wasm.wasmPaths = ORT_WASM_PATHS;
+    ort.env.wasm.wasmPaths = ORT_RUNTIME_ASSETS[backend].wasmPaths;
     ort.env.wasm.wasmBinary = ortBinary;
 
     return ort as OrtModule;
