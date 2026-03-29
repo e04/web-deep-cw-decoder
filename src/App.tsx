@@ -8,10 +8,10 @@ function App() {
         <Stack gap={0}>
           <Flex align="center" justify="space-between">
             <Text size="xl" fw={700}>
-              web-deep-cw-decoder
+              DeepCW
             </Text>
             <Text size="xs" c="dimmed">
-              v0.4.0
+              v0.4.1
             </Text>
           </Flex>
         </Stack>

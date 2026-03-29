@@ -1,4 +1,4 @@
-# web-deep-cw-decoder
+# DeepCW (web-deep-cw-decoder)
 
 [DEMO](https://e04.github.io/web-deep-cw-decoder/)
 
