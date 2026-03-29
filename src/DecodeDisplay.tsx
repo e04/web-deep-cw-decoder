@@ -7,7 +7,6 @@ import {
   HOP_LENGTH,
   getBufferSamples,
 } from "./const";
-import type { TextSegment } from "./utils/textDecoder";
 
 // Default animation duration: audio chunk interval = audio chunk / sample rate
 const DEFAULT_SCROLL_DURATION_S = AUDIO_CHUNK_SAMPLES / SAMPLE_RATE;
@@ -24,7 +23,7 @@ const getDecodeCharCount = (decodeWindowSeconds: number) =>
   ) + 1;
 
 type DecodeDisplayProps = {
-  segments: TextSegment[];
+  text: string;
   isDecoding: boolean;
   backgroundColor?: string;
   decodeWindowSeconds: number;
@@ -34,7 +33,7 @@ type DecodeDisplayProps = {
 };
 
 export const DecodeDisplay = ({
-  segments,
+  text,
   isDecoding,
   backgroundColor = "var(--mantine-color-dark-9)",
   decodeWindowSeconds,
@@ -42,7 +41,7 @@ export const DecodeDisplay = ({
   fontSize = 20,
   textStroke = false,
 }: DecodeDisplayProps) => {
-  const prevSegmentsRef = useRef(segments);
+  const prevTextRef = useRef(text);
   const updateCount = useRef(0);
   const lastUpdateTime = useRef(0);
   const animDuration = useRef(DEFAULT_SCROLL_DURATION_S);
@@ -60,8 +59,8 @@ export const DecodeDisplay = ({
   };
 
   // Update only when segments reference actually changes (not on unrelated re-renders)
-  if (segments !== prevSegmentsRef.current) {
-    prevSegmentsRef.current = segments;
+  if (text !== prevTextRef.current) {
+    prevTextRef.current = text;
     const now = performance.now();
     if (lastUpdateTime.current > 0) {
       animDuration.current = Math.max(
@@ -115,36 +114,18 @@ export const DecodeDisplay = ({
           key={updateCount.current}
           style={textRowStyle}
         >
-          {segments.flatMap((segment, segmentIndex) =>
-            segment.isAbbreviation
-              ? [
-                  <div
-                    key={`${segmentIndex}-abbr`}
-                    style={{
-                      width: charWidthPct,
-                      flexShrink: 0,
-                      textAlign: "center",
-                      whiteSpace: "nowrap",
-                      overflow: "visible",
-                      textDecorationLine: "overline",
-                    }}
-                  >
-                    {segment.text}
-                  </div>,
-                ]
-              : Array.from(segment.text).map((char, charIndex) => (
-                  <div
-                    key={`${segmentIndex}-${charIndex}`}
-                    style={{
-                      width: charWidthPct,
-                      flexShrink: 0,
-                      textAlign: "center",
-                    }}
-                  >
-                    {char}
-                  </div>
-                )),
-          )}
+          {Array.from(text).map((char, charIndex) => (
+            <div
+              key={charIndex}
+              style={{
+                width: charWidthPct,
+                flexShrink: 0,
+                textAlign: "center",
+              }}
+            >
+              {char}
+            </div>
+          ))}
         </div>
       </div>
     </Box>

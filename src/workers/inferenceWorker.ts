@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import * as ort from "onnxruntime-web";
 import { audioToSpectrogramTensor, audioToShiftedSpectrogramTensor } from "../utils/spectrogramUtils";
-import { decodePredictions, type TextSegment } from "../utils/textDecoder";
+import { decodePredictions } from "../utils/textDecoder";
 import { ENGLISH_CONFIG, JAPANESE_CONFIG } from "../const";
 
 type Lang = "en" | "ja";
@@ -26,7 +26,7 @@ type WorkerRequest =
 
 type WorkerResponse =
   | { id: number; type: "modelLoaded" }
-  | { id: number; type: "inferenceResult"; segments: TextSegment[] }
+  | { id: number; type: "inferenceResult"; text: string }
   | { id: number; type: "error"; error: string };
 
 const sessions: Record<Lang, ort.InferenceSession | null> = {
@@ -51,14 +51,14 @@ async function handleRunInference(
   filterWidth: number,
   lang: Lang,
   shiftTargetFreq?: number,
-): Promise<TextSegment[]> {
+): Promise<string> {
   const session = await ensureSession(lang);
 
   const spectrogramInput = shiftTargetFreq != null
     ? audioToShiftedSpectrogramTensor(audioBuffer, shiftTargetFreq)
     : audioToSpectrogramTensor(audioBuffer, filterFreq, filterWidth);
   if (!spectrogramInput) {
-    return [];
+    return "";
   }
 
   const inputTensor = new ort.Tensor(
@@ -72,13 +72,13 @@ async function handleRunInference(
   const results = await session.run(feeds);
   const outputTensor = results[session.outputNames[0]];
 
-  const decodedSegmentsList = decodePredictions(
+  const decodedTexts = decodePredictions(
     outputTensor.data,
     outputTensor.dims,
     lang
   );
 
-  return decodedSegmentsList.length > 0 ? decodedSegmentsList[0] : [];
+  return decodedTexts.length > 0 ? decodedTexts[0] : "";
 }
 
 const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope;
@@ -96,14 +96,14 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     }
 
     if (message.type === "runInference") {
-      const segments = await handleRunInference(
+      const text = await handleRunInference(
         message.audioBuffer,
         message.filterFreq,
         message.filterWidth,
         message.lang,
         message.shiftTargetFreq,
       );
-      respond({ id: message.id, type: "inferenceResult", segments });
+      respond({ id: message.id, type: "inferenceResult", text });
       return;
     }
 

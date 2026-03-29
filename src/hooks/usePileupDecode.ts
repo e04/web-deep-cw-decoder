@@ -2,7 +2,6 @@ import { useEffect, useState, useRef, type MutableRefObject } from "react";
 import { runInference } from "../utils/inference";
 import { waitForNextAudioChunk } from "../useDecode";
 import type { AudioBufferState } from "./useAudioProcessing";
-import type { TextSegment } from "../utils/textDecoder";
 
 type UsePileupDecodeParams = {
   stream: MediaStream | null;
@@ -14,7 +13,7 @@ type UsePileupDecodeParams = {
 };
 
 type UsePileupDecodeResult = {
-  segmentsMap: Record<number, TextSegment[]>;
+  textMap: Record<number, string>;
   isDecoding: boolean;
 };
 
@@ -25,15 +24,13 @@ export const usePileupDecode = ({
   peakFrequenciesRef,
   enabled,
 }: UsePileupDecodeParams): UsePileupDecodeResult => {
-  const [segmentsMap, setSegmentsMap] = useState<Record<number, TextSegment[]>>(
-    {},
-  );
+  const [textMap, setTextMap] = useState<Record<number, string>>({});
   const [isDecoding, setIsDecoding] = useState(false);
-  const segmentsMapRef = useRef(segmentsMap);
+  const textMapRef = useRef(textMap);
 
   useEffect(() => {
-    segmentsMapRef.current = segmentsMap;
-  }, [segmentsMap]);
+    textMapRef.current = textMap;
+  }, [textMap]);
 
   useEffect(() => {
     if (!stream || !loaded || !enabled) {
@@ -64,12 +61,12 @@ export const usePileupDecode = ({
         if (peaks.length === 0) continue;
 
         // Clean up stale entries
-        const currentMap = segmentsMapRef.current;
+        const currentMap = textMapRef.current;
         const staleKeys = Object.keys(currentMap)
           .map(Number)
           .filter((k) => !peaks.some((p) => Math.abs(p - k) < 30));
         if (staleKeys.length > 0) {
-          setSegmentsMap((prev) => {
+          setTextMap((prev) => {
             const next = { ...prev };
             for (const k of staleKeys) delete next[k];
             return next;
@@ -80,7 +77,7 @@ export const usePileupDecode = ({
         for (const freq of peaks) {
           if (cancelled) return;
 
-          const segments = await runInference(
+          const text = await runInference(
             audioBufferRef.current.samples,
             null,
             0,
@@ -89,7 +86,7 @@ export const usePileupDecode = ({
           );
           if (cancelled) return;
 
-          setSegmentsMap((prev) => ({ ...prev, [freq]: segments }));
+          setTextMap((prev) => ({ ...prev, [freq]: text }));
         }
       }
     };
@@ -99,9 +96,9 @@ export const usePileupDecode = ({
     return () => {
       cancelled = true;
       setIsDecoding(false);
-      setSegmentsMap({});
+      setTextMap({});
     };
   }, [stream, loaded, enabled, audioBufferRef, peakFrequenciesRef]);
 
-  return { segmentsMap, isDecoding };
+  return { textMap, isDecoding };
 };

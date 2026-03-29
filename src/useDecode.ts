@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, type MutableRefObject } from "react";
 import { loadModel, runInference } from "./utils/inference";
 import type { AudioBufferState } from "./hooks/useAudioProcessing";
-import type { TextSegment } from "./utils/textDecoder";
 
 export const waitForNextAudioChunk = (
   audioBufferRef: MutableRefObject<{ version: number }>,
@@ -41,8 +40,8 @@ export const useDecode = ({
 }: UseDecodeParams) => {
   const [loaded, setLoaded] = useState(false);
   const [loadedJa, setLoadedJa] = useState(false);
-  const [currentSegments, setCurrentSegments] = useState<TextSegment[]>([]);
-  const [currentSegmentsJa, setCurrentSegmentsJa] = useState<TextSegment[]>([]);
+  const [currentText, setCurrentText] = useState("");
+  const [currentTextJa, setCurrentTextJa] = useState("");
   const [isDecoding, setIsDecoding] = useState(false);
 
   const filterParamsRef = useRef({ filterFreq, filterWidth });
@@ -68,8 +67,8 @@ export const useDecode = ({
   }, [filterFreq, filterWidth]);
 
   useEffect(() => {
-    setCurrentSegments([]);
-    setCurrentSegmentsJa([]);
+    setCurrentText("");
+    setCurrentTextJa("");
   }, [decodeWindowSeconds]);
 
   useEffect(() => {
@@ -98,7 +97,7 @@ export const useDecode = ({
         lastAudioVersion = audioVersion;
         const { filterFreq, filterWidth } = filterParamsRef.current;
 
-        const segmentsEn = await runInference(
+        const textEn = await runInference(
           audioBufferRef.current.samples,
           filterFreq,
           filterWidth,
@@ -107,10 +106,10 @@ export const useDecode = ({
         if (cancelled) {
           return;
         }
-        setCurrentSegments(segmentsEn);
+        setCurrentText(textEn);
 
         if (language === "EN/JA" && loadedJa) {
-          const segmentsJa = await runInference(
+          const textJa = await runInference(
             audioBufferRef.current.samples,
             filterFreq,
             filterWidth,
@@ -119,7 +118,7 @@ export const useDecode = ({
           if (cancelled) {
             return;
           }
-          setCurrentSegmentsJa(segmentsJa);
+          setCurrentTextJa(textJa);
         }
       }
     };
@@ -133,5 +132,5 @@ export const useDecode = ({
     };
   }, [stream, loaded, loadedJa, language, audioBufferRef, enabled]);
 
-  return { loaded, loadedJa, currentSegments, currentSegmentsJa, isDecoding };
+  return { loaded, loadedJa, currentText, currentTextJa, isDecoding };
 };

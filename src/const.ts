@@ -41,7 +41,6 @@ export const ENGLISH_CONFIG = {
     "Z",
   ],
   BLANK_INDEX: 38,
-  ABBREVIATION: {},
 };
 
 export const JAPANESE_CONFIG = {
@@ -115,8 +114,6 @@ export const JAPANESE_CONFIG = {
     "）"
   ],
   BLANK_INDEX: 66,
-  ABBREVIATION: {
-  },
 };
 
 export const NumToChar = Object.fromEntries(
