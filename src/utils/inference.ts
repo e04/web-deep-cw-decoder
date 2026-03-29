@@ -1,35 +1,53 @@
-type Lang = "en" | "ja";
+import type {
+  InferenceBackend,
+  Lang,
+  WorkerRequest,
+  WorkerResponse,
+} from "./inferenceProtocol";
 
-type WorkerRequest =
-  | { id: number; type: "loadModel"; lang: Lang }
-  | {
-      id: number;
-      type: "runInference";
-      lang: Lang;
-      audioBuffer: Float32Array;
-      filterFreq: number | null;
-      filterWidth: number;
-      shiftTargetFreq?: number;
-    };
+type PendingRequest = {
+  resolve: (response: WorkerResponse) => void;
+  reject: (error: Error) => void;
+};
 
-type WorkerResponse =
-  | { id: number; type: "modelLoaded" }
-  | { id: number; type: "inferenceResult"; text: string }
-  | { id: number; type: "error"; error: string };
+type RunInferenceRequest = Omit<
+  Extract<WorkerRequest, { type: "runInference" }>,
+  "id"
+>;
+
+type RunInferenceOptions = {
+  lang?: Lang;
+  backend?: InferenceBackend;
+  shiftTargetFreq?: number;
+};
 
 let inferenceWorker: Worker | null = null;
 let nextRequestId = 1;
-const modelLoadPromises: Record<Lang, Promise<void> | null> = {
-  en: null,
-  ja: null,
+
+const modelLoadPromises: Record<
+  InferenceBackend,
+  Record<Lang, Promise<void> | null>
+> = {
+  wasm: { en: null, ja: null },
+  webgpu: { en: null, ja: null },
 };
-const pendingRequests = new Map<
-  number,
-  {
-    resolve: (response: WorkerResponse) => void;
-    reject: (error: Error) => void;
-  }
->();
+
+const pendingRequests = new Map<number, PendingRequest>();
+
+function resetWorker(message: string): void {
+  inferenceWorker?.terminate();
+  inferenceWorker = null;
+
+  modelLoadPromises.wasm.en = null;
+  modelLoadPromises.wasm.ja = null;
+  modelLoadPromises.webgpu.en = null;
+  modelLoadPromises.webgpu.ja = null;
+
+  pendingRequests.forEach(({ reject }) => {
+    reject(new Error(message));
+  });
+  pendingRequests.clear();
+}
 
 function getWorker(): Worker {
   if (inferenceWorker) return inferenceWorker;
@@ -55,10 +73,7 @@ function getWorker(): Worker {
   };
 
   inferenceWorker.onerror = (event: ErrorEvent) => {
-    pendingRequests.forEach(({ reject }) => {
-      reject(new Error(event.message));
-    });
-    pendingRequests.clear();
+    resetWorker(event.message || "Inference worker crashed.");
   };
 
   return inferenceWorker;
@@ -78,21 +93,25 @@ function sendMessage(
   });
 }
 
-export async function loadModel(lang: Lang = "en"): Promise<void> {
-  if (modelLoadPromises[lang]) return modelLoadPromises[lang]!;
+export async function loadModel(
+  lang: Lang = "en",
+  backend: InferenceBackend = "wasm",
+): Promise<void> {
+  const cachedPromise = modelLoadPromises[backend][lang];
+  if (cachedPromise) return cachedPromise;
 
-  const promise = sendMessage({ type: "loadModel", lang })
+  const promise = sendMessage({ type: "loadModel", lang, backend })
     .then((response) => {
       if (response.type === "modelLoaded") return;
       if (response.type === "error") throw new Error(response.error);
       throw new Error("Unexpected worker response while loading model.");
     })
     .catch((error) => {
-      modelLoadPromises[lang] = null;
+      modelLoadPromises[backend][lang] = null;
       throw error;
     });
 
-  modelLoadPromises[lang] = promise;
+  modelLoadPromises[backend][lang] = promise;
 
   return promise;
 }
@@ -101,11 +120,16 @@ export async function runInference(
   audioBuffer: Float32Array,
   filterFreq: number | null,
   filterWidth: number,
-  lang: Lang = "en",
-  shiftTargetFreq?: number,
+  options: RunInferenceOptions = {},
 ): Promise<string> {
+  const {
+    lang = "en",
+    backend = "wasm",
+    shiftTargetFreq,
+  } = options;
+
   try {
-    await loadModel(lang);
+    await loadModel(lang, backend);
   } catch (error) {
     console.error("Failed to load inference model", error);
     return "";
@@ -114,15 +138,18 @@ export async function runInference(
   const audioCopy = audioBuffer.slice();
 
   try {
+    const request: RunInferenceRequest = {
+      type: "runInference",
+      lang,
+      backend,
+      audioBuffer: audioCopy,
+      filterFreq,
+      filterWidth,
+      shiftTargetFreq,
+    };
+
     const response = await sendMessage(
-      {
-        type: "runInference",
-        lang,
-        audioBuffer: audioCopy,
-        filterFreq,
-        filterWidth,
-        shiftTargetFreq,
-      } as Omit<WorkerRequest, "id">,
+      request,
       [audioCopy.buffer],
     );
 

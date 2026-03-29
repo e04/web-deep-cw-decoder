@@ -18,6 +18,10 @@ import { Histogram } from "./Histogram";
 import { PileupOverlay } from "./PileupOverlay";
 import type { FrequencyDataState } from "./hooks/useSpectrogramRenderer";
 import { Box, Button, Flex, Stack, NativeSelect, Tooltip } from "@mantine/core";
+import {
+  INFERENCE_BACKEND_OPTIONS,
+  type InferenceBackend,
+} from "./utils/inferenceProtocol";
 
 type DecoderMode = "normal" | "pileup";
 
@@ -28,6 +32,7 @@ export const Decoder = () => {
   const [filterWidth, setFilterWidth] = useState<number>(250);
   const [gain, setGain] = useState<number>(0);
   const [language, setLanguage] = useState<"EN" | "EN/JA">("EN");
+  const [backend, setBackend] = useState<InferenceBackend>("wasm");
   const [decodeWindowSeconds, setDecodeWindowSeconds] =
     useState<DecodeWindowSeconds>(DEFAULT_DECODE_WINDOW_S);
 
@@ -58,12 +63,20 @@ export const Decoder = () => {
 
   const audioBufferRef = useAudioProcessing(stream, gain, effectiveWindowSeconds);
 
-  const { loaded, loadedJa, currentText, currentTextJa, isDecoding } =
+  const {
+    loaded,
+    loadedJa,
+    loadError,
+    currentText,
+    currentTextJa,
+    isDecoding,
+  } =
     useDecode({
       filterFreq: isPileup ? null : filterFreq,
       filterWidth,
       stream,
       language: isPileup ? "EN" : language,
+      backend,
       decodeWindowSeconds: effectiveWindowSeconds,
       audioBufferRef,
       enabled: !isPileup,
@@ -72,6 +85,7 @@ export const Decoder = () => {
   const { textMap, isDecoding: isPileupDecoding } = usePileupDecode({
     stream,
     loaded,
+    backend,
     audioBufferRef,
     peakFrequenciesRef: pileupPeaksRef,
     enabled: isPileup,
@@ -142,6 +156,13 @@ export const Decoder = () => {
               style={{ color: "var(--mantine-color-gray-5)", fontSize: "14px" }}
             >
               LOADING...
+            </Box>
+          )}
+          {loadError && (
+            <Box
+              style={{ color: "var(--mantine-color-red-4)", fontSize: "14px" }}
+            >
+              {loadError}
             </Box>
           )}
         </Flex>
@@ -303,6 +324,14 @@ export const Decoder = () => {
             }
           />
         )}
+        <NativeSelect
+          label="ENGINE"
+          data={INFERENCE_BACKEND_OPTIONS}
+          value={backend}
+          onChange={(event) =>
+            setBackend(event.currentTarget.value as InferenceBackend)
+          }
+        />
         <NativeSelect
           label="MODE"
           data={[

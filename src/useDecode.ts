@@ -1,6 +1,8 @@
-import { useEffect, useState, useRef, type MutableRefObject } from "react";
-import { loadModel, runInference } from "./utils/inference";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
+
 import type { AudioBufferState } from "./hooks/useAudioProcessing";
+import { loadModel, runInference } from "./utils/inference";
+import type { InferenceBackend } from "./utils/inferenceProtocol";
 
 export const waitForNextAudioChunk = (
   audioBufferRef: MutableRefObject<{ version: number }>,
@@ -24,6 +26,7 @@ type UseDecodeParams = {
   filterWidth: number;
   stream: MediaStream | null;
   language: "EN" | "EN/JA";
+  backend: InferenceBackend;
   decodeWindowSeconds: number;
   audioBufferRef: MutableRefObject<AudioBufferState>;
   enabled?: boolean;
@@ -34,33 +37,80 @@ export const useDecode = ({
   filterWidth,
   stream,
   language,
+  backend,
   decodeWindowSeconds,
   audioBufferRef,
   enabled = true,
 }: UseDecodeParams) => {
-  const [loaded, setLoaded] = useState(false);
-  const [loadedJa, setLoadedJa] = useState(false);
+  const [loadedEnBackend, setLoadedEnBackend] =
+    useState<InferenceBackend | null>(null);
+  const [loadedJaBackend, setLoadedJaBackend] =
+    useState<InferenceBackend | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [currentText, setCurrentText] = useState("");
   const [currentTextJa, setCurrentTextJa] = useState("");
   const [isDecoding, setIsDecoding] = useState(false);
 
   const filterParamsRef = useRef({ filterFreq, filterWidth });
 
-  useEffect(() => {
-    (async () => {
-      await loadModel("en");
-      setLoaded(true);
-    })();
-  }, []);
+  const loaded = loadedEnBackend === backend;
+  const loadedJa = loadedJaBackend === backend;
 
   useEffect(() => {
-    if (language === "EN/JA" && !loadedJa) {
-      (async () => {
-        await loadModel("ja");
-        setLoadedJa(true);
-      })();
-    }
-  }, [language, loadedJa]);
+    setLoadError(null);
+  }, [backend, language]);
+
+  useEffect(() => {
+    if (loaded) return;
+
+    let cancelled = false;
+
+    void loadModel("en", backend)
+      .then(() => {
+        if (!cancelled) {
+          setLoadedEnBackend(backend);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load inference backend.",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [backend, loaded]);
+
+  useEffect(() => {
+    if (language !== "EN/JA" || loadedJa) return;
+
+    let cancelled = false;
+
+    void loadModel("ja", backend)
+      .then(() => {
+        if (!cancelled) {
+          setLoadedJaBackend(backend);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load inference backend.",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [backend, language, loadedJa]);
 
   useEffect(() => {
     filterParamsRef.current = { filterFreq, filterWidth };
@@ -69,7 +119,7 @@ export const useDecode = ({
   useEffect(() => {
     setCurrentText("");
     setCurrentTextJa("");
-  }, [decodeWindowSeconds]);
+  }, [backend, decodeWindowSeconds]);
 
   useEffect(() => {
     if (!stream || !loaded || !enabled) {
@@ -101,7 +151,7 @@ export const useDecode = ({
           audioBufferRef.current.samples,
           filterFreq,
           filterWidth,
-          "en"
+          { lang: "en", backend },
         );
         if (cancelled) {
           return;
@@ -113,7 +163,7 @@ export const useDecode = ({
             audioBufferRef.current.samples,
             filterFreq,
             filterWidth,
-            "ja"
+            { lang: "ja", backend },
           );
           if (cancelled) {
             return;
@@ -130,7 +180,14 @@ export const useDecode = ({
       cancelled = true;
       setIsDecoding(false);
     };
-  }, [stream, loaded, loadedJa, language, audioBufferRef, enabled]);
+  }, [audioBufferRef, backend, enabled, language, loaded, loadedJa, stream]);
 
-  return { loaded, loadedJa, currentText, currentTextJa, isDecoding };
+  return {
+    loaded,
+    loadedJa,
+    loadError,
+    currentText,
+    currentTextJa,
+    isDecoding,
+  };
 };
