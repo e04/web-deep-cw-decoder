@@ -5,12 +5,3 @@ body {
 .scopeCanvas--pileup {
   filter: brightness(0.75);
 }
-
-@keyframes decode-scroll-left {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(calc(-1 * var(--decode-scroll-step-pct, 0%)));
-  }
-}

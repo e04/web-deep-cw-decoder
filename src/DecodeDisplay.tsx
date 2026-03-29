@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties } from "react";
+import { useRef, useLayoutEffect } from "react";
 import { Box } from "@mantine/core";
 import {
   AUDIO_CHUNK_SAMPLES,
@@ -11,11 +11,6 @@ import {
 // Default animation duration: audio chunk interval = audio chunk / sample rate
 const DEFAULT_SCROLL_DURATION_S = AUDIO_CHUNK_SAMPLES / SAMPLE_RATE;
 const SCROLL_FRAME_COUNT = AUDIO_CHUNK_SAMPLES / HOP_LENGTH;
-const SCROLL_STEP_CSS_VAR = "--decode-scroll-step-pct" as const;
-
-type DecodeRowStyle = CSSProperties & {
-  [SCROLL_STEP_CSS_VAR]: string;
-};
 
 const getDecodeCharCount = (decodeWindowSeconds: number) =>
   Math.floor(
@@ -42,25 +37,19 @@ export const DecodeDisplay = ({
   textStroke = false,
 }: DecodeDisplayProps) => {
   const prevTextRef = useRef(text);
-  const updateCount = useRef(0);
   const lastUpdateTime = useRef(0);
   const animDuration = useRef(DEFAULT_SCROLL_DURATION_S);
+  const rowRef = useRef<HTMLDivElement>(null);
   const decodeCharCount = getDecodeCharCount(decodeWindowSeconds);
   const charWidthPct = `${100 / decodeCharCount}%`;
-  const scrollStepPct = `${(100 * SCROLL_FRAME_COUNT) / decodeCharCount}%`;
-  const textRowStyle: DecodeRowStyle = {
-    display: "flex",
-    justifyContent: "space-between",
-    width: "100%",
-    animation: isDecoding
-      ? `decode-scroll-left ${animDuration.current}s linear forwards`
-      : undefined,
-    [SCROLL_STEP_CSS_VAR]: scrollStepPct,
-  };
+  const scrollStepPct = (100 * SCROLL_FRAME_COUNT) / decodeCharCount;
 
-  // Update only when segments reference actually changes (not on unrelated re-renders)
-  if (text !== prevTextRef.current) {
+  // Drive the scroll animation via Web Animations API so the DOM element is
+  // reused across updates – no unmount/remount flicker.
+  useLayoutEffect(() => {
+    if (text === prevTextRef.current) return;
     prevTextRef.current = text;
+
     const now = performance.now();
     if (lastUpdateTime.current > 0) {
       animDuration.current = Math.max(
@@ -69,8 +58,24 @@ export const DecodeDisplay = ({
       );
     }
     lastUpdateTime.current = now;
-    updateCount.current += 1;
-  }
+
+    const el = rowRef.current;
+    if (!el || !isDecoding) return;
+
+    // Cancel any in-flight animation and start fresh
+    el.getAnimations().forEach((a) => a.cancel());
+    el.animate(
+      [
+        { transform: "translateX(0)" },
+        { transform: `translateX(-${scrollStepPct}%)` },
+      ],
+      {
+        duration: animDuration.current * 1000,
+        easing: "linear",
+        fill: "forwards",
+      },
+    );
+  }, [text, isDecoding, scrollStepPct]);
 
   return (
     <Box
@@ -111,8 +116,12 @@ export const DecodeDisplay = ({
         }}
       >
         <div
-          key={updateCount.current}
-          style={textRowStyle}
+          ref={rowRef}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            width: "100%",
+          }}
         >
           {Array.from(text).map((char, charIndex) => (
             <div
