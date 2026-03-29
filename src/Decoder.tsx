@@ -12,13 +12,15 @@ import {
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
 import { useAudioProcessing } from "./hooks/useAudioProcessing";
+import { useLoadProgress } from "./hooks/useLoadProgress";
 import { usePileupDecode } from "./hooks/usePileupDecode";
 import { usePersistedState } from "./hooks/usePersistedState";
 import { DecodeDisplay } from "./DecodeDisplay";
 import { Histogram } from "./Histogram";
+import { LoadProgressBars } from "./LoadProgressBars";
 import { PileupOverlay } from "./PileupOverlay";
 import type { FrequencyDataState } from "./hooks/useSpectrogramRenderer";
-import { Box, Button, Flex, Stack, NativeSelect, Tooltip } from "@mantine/core";
+import { Box, Button, Flex, NativeSelect, Stack, Tooltip } from "@mantine/core";
 import {
   INFERENCE_BACKEND_OPTIONS,
   type InferenceBackend,
@@ -115,8 +117,10 @@ export const Decoder = () => {
   }, [audioInputDevices, selectedAudioInput]);
 
   const effectiveWindowSeconds = isPileup ? PILEUP_WINDOW_S : decodeWindowSeconds;
+  const progressLanguage = isPileup ? "EN" : language;
 
   const audioBufferRef = useAudioProcessing(stream, gain, effectiveWindowSeconds);
+  const loadProgress = useLoadProgress(backend, progressLanguage);
 
   const {
     loaded,
@@ -191,7 +195,7 @@ export const Decoder = () => {
   return (
     <Stack gap={8}>
       <Flex justify="space-between" align="center">
-        <Flex align="center" gap="sm">
+        <Flex gap="sm">
           <Button
             w={200}
             color={isActive ? "red" : "indigo"}
@@ -206,13 +210,7 @@ export const Decoder = () => {
           >
             {isActive ? "STOP" : "START"}
           </Button>
-          {isLoading && (
-            <Box
-              style={{ color: "var(--mantine-color-gray-5)", fontSize: "14px" }}
-            >
-              LOADING...
-            </Box>
-          )}
+          <LoadProgressBars progress={loadProgress} />
           {loadError && (
             <Box
               style={{ color: "var(--mantine-color-red-4)", fontSize: "14px" }}
