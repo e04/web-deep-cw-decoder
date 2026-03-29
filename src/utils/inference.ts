@@ -1,5 +1,3 @@
-import type { TextSegment } from "./textDecoder";
-
 type Lang = "en" | "ja";
 
 type WorkerRequest =
@@ -16,7 +14,7 @@ type WorkerRequest =
 
 type WorkerResponse =
   | { id: number; type: "modelLoaded" }
-  | { id: number; type: "inferenceResult"; segments: TextSegment[] }
+  | { id: number; type: "inferenceResult"; text: string }
   | { id: number; type: "error"; error: string };
 
 let inferenceWorker: Worker | null = null;
@@ -105,12 +103,12 @@ export async function runInference(
   filterWidth: number,
   lang: Lang = "en",
   shiftTargetFreq?: number,
-): Promise<TextSegment[]> {
+): Promise<string> {
   try {
     await loadModel(lang);
   } catch (error) {
     console.error("Failed to load inference model", error);
-    return [];
+    return "";
   }
 
   const audioCopy = audioBuffer.slice();
@@ -129,12 +127,12 @@ export async function runInference(
     );
 
     if (response.type === "inferenceResult") {
-      return response.segments;
+      return response.text;
     }
 
-    return [];
+    return "";
   } catch (error) {
     console.error("Inference worker error", error);
-    return [];
+    return "";
   }
 }

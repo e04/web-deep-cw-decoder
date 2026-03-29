@@ -58,7 +58,7 @@ export const Decoder = () => {
 
   const audioBufferRef = useAudioProcessing(stream, gain, effectiveWindowSeconds);
 
-  const { loaded, loadedJa, currentSegments, currentSegmentsJa, isDecoding } =
+  const { loaded, loadedJa, currentText, currentTextJa, isDecoding } =
     useDecode({
       filterFreq: isPileup ? null : filterFreq,
       filterWidth,
@@ -69,7 +69,7 @@ export const Decoder = () => {
       enabled: !isPileup,
     });
 
-  const { segmentsMap, isDecoding: isPileupDecoding } = usePileupDecode({
+  const { textMap, isDecoding: isPileupDecoding } = usePileupDecode({
     stream,
     loaded,
     audioBufferRef,
@@ -176,7 +176,7 @@ export const Decoder = () => {
             {isPileup && stream && (
               <PileupOverlay
                 peakFrequencies={pileupPeaks}
-                segmentsMap={segmentsMap}
+                textMap={textMap}
                 isDecoding={isPileupDecoding}
                 decodeWindowSeconds={effectiveWindowSeconds}
                 minFreqHz={PILEUP_MIN_FREQ_HZ}
@@ -199,14 +199,14 @@ export const Decoder = () => {
         {!isPileup && (
           <Stack gap={0}>
             <DecodeDisplay
-              segments={currentSegments}
+              text={currentText}
               isDecoding={isDecoding}
               decodeWindowSeconds={decodeWindowSeconds}
             />
 
             {showJapaneseDisplay && (
               <DecodeDisplay
-                segments={currentSegmentsJa}
+                text={currentTextJa}
                 isDecoding={isDecoding}
                 backgroundColor="#36021e"
                 decodeWindowSeconds={decodeWindowSeconds}

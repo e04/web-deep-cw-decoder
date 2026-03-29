@@ -1,11 +1,6 @@
 import type { Tensor } from "onnxruntime-web";
 import { ENGLISH_CONFIG, JAPANESE_CONFIG } from "../const";
 
-export type TextSegment = {
-  text: string;
-  isAbbreviation: boolean;
-};
-
 type DecoderConfig = typeof ENGLISH_CONFIG | typeof JAPANESE_CONFIG;
 
 function replaceConsecutiveChars(str: string): string {
@@ -46,65 +41,13 @@ function getDecoderConfig(lang: "en" | "ja"): DecoderConfig {
   return lang === "ja" ? JAPANESE_CONFIG : ENGLISH_CONFIG;
 }
 
-function convertAbbreviationsWithSegments(
-  str: string,
-  lang: "en" | "ja" = "en"
-): TextSegment[] {
-  const config = getDecoderConfig(lang);
-  const abbreviations = Object.entries(config.ABBREVIATION) as [string, string][];
-  
-  if (abbreviations.length === 0) {
-    return [{ text: str, isAbbreviation: false }];
-  }
-
-  // Create a regex that matches any abbreviation
-  const abbrevPattern = abbreviations.map(([abbrev]) => abbrev).join("|");
-  const regex = new RegExp(`(${abbrevPattern})`, "g");
-  
-  const segments: TextSegment[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(str)) !== null) {
-    // Add text before the match
-    if (match.index > lastIndex) {
-      segments.push({
-        text: str.slice(lastIndex, match.index),
-        isAbbreviation: false,
-      });
-    }
-    
-    // Find the expansion for this abbreviation
-    const matchedText = match[0];
-    const abbrevEntry = abbreviations.find(([abbrev]) => abbrev === matchedText);
-    const expansion = abbrevEntry ? abbrevEntry[1] : matchedText;
-    
-    segments.push({
-      text: expansion,
-      isAbbreviation: true,
-    });
-    
-    lastIndex = regex.lastIndex;
-  }
-  
-  // Add remaining text after last match
-  if (lastIndex < str.length) {
-    segments.push({
-      text: str.slice(lastIndex),
-      isAbbreviation: false,
-    });
-  }
-  
-  return segments.length > 0 ? segments : [{ text: str, isAbbreviation: false }];
-}
-
 export function decodePredictions(
   pred: Tensor["data"],
   predShape: Tensor["dims"],
   lang: "en" | "ja" = "en"
-): TextSegment[][] {
+) : string[] {
   const [batchSize, timeSteps, numClasses] = predShape;
-  const outputSegments: TextSegment[][] = [];
+  const outputTexts: string[] = [];
   
   const config = getDecoderConfig(lang);
   const vocabulary = config.VOCABULARY;
@@ -132,13 +75,8 @@ export function decodePredictions(
         ? decodeCtcForDisplay(predIndices, vocabulary, config.BLANK_INDEX)
         : replaceConsecutiveChars(predIndices.map((c) => vocabulary[c] || "").join(""));
 
-    const processedSegments = convertAbbreviationsWithSegments(
-      resText,
-      lang
-    );
-
-    outputSegments.push(processedSegments);
+    outputTexts.push(resText);
   }
 
-  return outputSegments;
+  return outputTexts;
 }
