@@ -17,10 +17,10 @@ import {
   audioToSpectrogramTensor,
 } from "../utils/spectrogramUtils";
 import { decodePredictions } from "../utils/textDecoder";
+import ortWasmThreadedModuleUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs?url";
+import ortWasmThreadedBinaryUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm?url";
 import ortWasmJsepModuleUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs?url";
 import ortWasmJsepBinaryUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm?url";
-import ortWasmAsyncifyModuleUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.mjs?url";
-import ortWasmAsyncifyBinaryUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm?url";
 
 type OrtModule = typeof Ort;
 
@@ -40,15 +40,15 @@ const ORT_RUNTIME_ASSETS: Record<
   }
 > = {
   wasm: {
-    binaryUrl: ortWasmJsepBinaryUrl,
+    binaryUrl: ortWasmThreadedBinaryUrl,
     wasmPaths: {
-      mjs: ortWasmJsepModuleUrl,
+      mjs: ortWasmThreadedModuleUrl,
     },
   },
   webgpu: {
-    binaryUrl: ortWasmAsyncifyBinaryUrl,
+    binaryUrl: ortWasmJsepBinaryUrl,
     wasmPaths: {
-      mjs: ortWasmAsyncifyModuleUrl,
+      mjs: ortWasmJsepModuleUrl,
     },
   },
 };
