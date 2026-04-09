@@ -1,15 +1,16 @@
 import { useEffect, useState, useRef, type MutableRefObject } from "react";
-import { runInference } from "../utils/inference";
+import { PILEUP_TEXT_HOLD_MS } from "../const";
+import { loadModel, runPileupInference } from "../utils/inference";
 import type { InferenceBackend } from "../utils/inferenceProtocol";
 import { waitForNextAudioChunk } from "../useDecode";
 import type { AudioBufferState } from "./useAudioProcessing";
+import type { PileupTrack } from "../utils/pileupCandidates";
 
 type UsePileupDecodeParams = {
   stream: MediaStream | null;
-  loaded: boolean;
   backend: InferenceBackend;
   audioBufferRef: MutableRefObject<AudioBufferState>;
-  peakFrequenciesRef: MutableRefObject<number[]>;
+  tracksRef: MutableRefObject<PileupTrack[]>;
   enabled: boolean;
   decodeWindowSeconds: number;
 };
@@ -17,23 +18,62 @@ type UsePileupDecodeParams = {
 type UsePileupDecodeResult = {
   textMap: Record<number, string>;
   isDecoding: boolean;
+  loaded: boolean;
+  loadError: string | null;
 };
 
 export const usePileupDecode = ({
   stream,
-  loaded,
   backend,
   audioBufferRef,
-  peakFrequenciesRef,
+  tracksRef,
   enabled,
 }: UsePileupDecodeParams): UsePileupDecodeResult => {
   const [textMap, setTextMap] = useState<Record<number, string>>({});
   const [isDecoding, setIsDecoding] = useState(false);
+  const [loadedSignature, setLoadedSignature] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const textMapRef = useRef(textMap);
+  const lastNonEmptyAtRef = useRef<Record<number, number>>({});
+  const modelSelectionSignature = backend;
+  const loaded = loadedSignature === modelSelectionSignature;
 
   useEffect(() => {
     textMapRef.current = textMap;
   }, [textMap]);
+
+  useEffect(() => {
+    setLoadError(null);
+  }, [backend]);
+
+  useEffect(() => {
+    if (!enabled || loaded) {
+      return;
+    }
+
+    let cancelled = false;
+    setLoadError(null);
+
+    void loadModel("en", backend, "narrow")
+      .then(() => {
+        if (!cancelled) {
+          setLoadedSignature(modelSelectionSignature);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load pileup inference model.",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [backend, enabled, loaded, modelSelectionSignature]);
 
   useEffect(() => {
     if (!stream || !loaded || !enabled) {
@@ -60,40 +100,59 @@ export const usePileupDecode = ({
         }
         lastAudioVersion = audioVersion;
 
-        const peaks = peakFrequenciesRef.current;
-        if (peaks.length === 0) continue;
-
-        // Clean up stale entries
-        const currentMap = textMapRef.current;
-        const staleKeys = Object.keys(currentMap)
-          .map(Number)
-          .filter((k) => !peaks.some((p) => Math.abs(p - k) < 30));
-        if (staleKeys.length > 0) {
-          setTextMap((prev) => {
-            const next = { ...prev };
-            for (const k of staleKeys) delete next[k];
-            return next;
-          });
+        const tracks = tracksRef.current;
+        if (tracks.length === 0) {
+          if (Object.keys(textMapRef.current).length > 0) {
+            setTextMap({});
+            lastNonEmptyAtRef.current = {};
+          }
+          continue;
         }
 
-        // Decode each peak sequentially with spectrogram bin shifting
-        for (const freq of peaks) {
-          if (cancelled) return;
+        const nextTexts = await runPileupInference(
+          audioBufferRef.current.samples,
+          tracks,
+          backend,
+        );
+        if (cancelled) return;
 
-          const text = await runInference(
-            audioBufferRef.current.samples,
-            null,
-            0,
-            {
-              lang: "en",
-              backend,
-              shiftTargetFreq: freq,
-            },
-          );
-          if (cancelled) return;
+        const updateTime = performance.now();
+        setTextMap((prev) => {
+          const next = { ...prev };
+          const activeTrackIds = new Set(tracks.map((track) => track.id));
 
-          setTextMap((prev) => ({ ...prev, [freq]: text }));
-        }
+          for (const key of Object.keys(next)) {
+            const trackId = Number(key);
+            if (!activeTrackIds.has(trackId)) {
+              delete next[trackId];
+              delete lastNonEmptyAtRef.current[trackId];
+            }
+          }
+
+          for (const track of tracks) {
+            const text = nextTexts[track.id] ?? "";
+            const hasNewText = text.trim().length > 0;
+            const nextText = hasNewText
+              ? text
+              : prev[track.id] &&
+                  updateTime - (lastNonEmptyAtRef.current[track.id] ?? 0) <
+                    PILEUP_TEXT_HOLD_MS
+                ? prev[track.id]
+                : "";
+
+            if (nextText) {
+              next[track.id] = nextText;
+              if (hasNewText) {
+                lastNonEmptyAtRef.current[track.id] = updateTime;
+              }
+            } else {
+              delete next[track.id];
+              delete lastNonEmptyAtRef.current[track.id];
+            }
+          }
+
+          return next;
+        });
       }
     };
 
@@ -103,8 +162,16 @@ export const usePileupDecode = ({
       cancelled = true;
       setIsDecoding(false);
       setTextMap({});
+      lastNonEmptyAtRef.current = {};
     };
-  }, [audioBufferRef, backend, enabled, loaded, peakFrequenciesRef, stream]);
+  }, [
+    audioBufferRef,
+    backend,
+    enabled,
+    loaded,
+    stream,
+    tracksRef,
+  ]);
 
-  return { textMap, isDecoding };
+  return { textMap, isDecoding, loaded, loadError };
 };

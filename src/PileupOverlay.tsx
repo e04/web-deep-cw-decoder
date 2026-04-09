@@ -1,9 +1,10 @@
 import { Box } from "@mantine/core";
 import { DecodeDisplay } from "./DecodeDisplay";
 import { MIN_FREQ_HZ, MAX_FREQ_HZ } from "./const";
+import type { PileupTrack } from "./utils/pileupCandidates";
 
 type PileupOverlayProps = {
-  peakFrequencies: number[];
+  tracks: PileupTrack[];
   textMap: Record<number, string>;
   isDecoding: boolean;
   decodeWindowSeconds: number;
@@ -12,7 +13,7 @@ type PileupOverlayProps = {
 };
 
 export const PileupOverlay = ({
-  peakFrequencies,
+  tracks,
   textMap,
   isDecoding,
   decodeWindowSeconds,
@@ -30,13 +31,13 @@ export const PileupOverlay = ({
         overflow: "hidden",
       }}
     >
-      {peakFrequencies.map((freq) => {
-        const text = textMap[freq] ?? "";
-        const topPercent = ((maxFreqHz - freq) / range) * 100;
+      {tracks.map((track) => {
+        const text = textMap[track.id] ?? "";
+        const topPercent = ((maxFreqHz - track.frequency) / range) * 100;
 
         return (
           <Box
-            key={freq}
+            key={track.id}
             style={{
               position: "absolute",
               left: 0,

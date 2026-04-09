@@ -27,8 +27,11 @@ export function hslToRgb(
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
-export function buildColorLUT(): Array<[number, number, number]> {
+export function buildColorLUT(
+  brightness: number = 1,
+): Array<[number, number, number]> {
   const lut: Array<[number, number, number]> = new Array(256);
+  const brightnessScale = Math.max(0, brightness);
 
   for (let v = 0; v < 256; v++) {
     let t = v / 255;
@@ -40,7 +43,12 @@ export function buildColorLUT(): Array<[number, number, number]> {
     const sat = 1.0;
     const light = 0.15 + 0.75 * t;
 
-    lut[v] = hslToRgb(hue, sat, light);
+    const [r, g, b] = hslToRgb(hue, sat, light);
+    lut[v] = [
+      Math.min(255, Math.round(r * brightnessScale)),
+      Math.min(255, Math.round(g * brightnessScale)),
+      Math.min(255, Math.round(b * brightnessScale)),
+    ];
   }
 
   return lut;

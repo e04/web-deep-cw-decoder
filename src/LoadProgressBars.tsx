@@ -44,7 +44,7 @@ type LoadProgressBarsProps = {
 export function LoadProgressBars({ progress }: LoadProgressBarsProps) {
   const bars = [
     { label: "ORT", value: progress.ortPercent },
-    { label: "MODEL EN", value: progress.modelEnPercent },
+    { label: progress.modelEnLabel, value: progress.modelEnPercent },
     ...(progress.showJaModel
       ? [{ label: "MODEL JA", value: progress.modelJaPercent }]
       : []),
@@ -55,7 +55,7 @@ export function LoadProgressBars({ progress }: LoadProgressBarsProps) {
   }
 
   return (
-    <Stack gap={2} w={220}>
+    <Stack gap={2} w="100%" style={{ flex: 1, minWidth: 0 }}>
       {bars.map(({ label, value }) => (
         <LoadProgressBar key={label} label={label} value={value} />
       ))}

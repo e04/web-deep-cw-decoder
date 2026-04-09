@@ -1,54 +1,36 @@
 import { useEffect } from "react";
-import {
-  MIN_FREQ_HZ,
-  MAX_FREQ_HZ,
-  DECODABLE_MIN_FREQ_HZ,
-  DECODABLE_MAX_FREQ_HZ,
-} from "../const";
+import { MAX_FREQ_HZ, MIN_FREQ_HZ } from "../const";
+import { clampFrequencyToRange } from "../utils/frequencyUtils";
 
 type UseCanvasInteractionParams = {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   filterFreq: number | null;
-  setFilterFreq: (freq: number | null) => void;
-  filterWidth: number;
+  setFilterFreq: (freq: number) => void;
   enabled?: boolean;
-};
-
-const constrainFrequency = (
-  frequency: number,
-  filterWidth: number
-): number => {
-  const halfWidth = filterWidth / 2;
-
-  if (frequency - halfWidth < DECODABLE_MIN_FREQ_HZ) {
-    return DECODABLE_MIN_FREQ_HZ + halfWidth;
-  }
-
-  if (frequency + halfWidth > DECODABLE_MAX_FREQ_HZ) {
-    return DECODABLE_MAX_FREQ_HZ - halfWidth;
-  }
-
-  return frequency;
+  minFreqHz?: number;
+  maxFreqHz?: number;
 };
 
 const calculateFrequencyFromY = (
   y: number,
   canvasHeight: number,
-  filterWidth: number
+  minFreqHz: number,
+  maxFreqHz: number,
 ): number => {
   const invY = canvasHeight - y;
-  const frequencyRange = MAX_FREQ_HZ - MIN_FREQ_HZ;
-  const rawFrequency = MIN_FREQ_HZ + (invY / canvasHeight) * frequencyRange;
+  const frequencyRange = maxFreqHz - minFreqHz;
+  const rawFrequency = minFreqHz + (invY / canvasHeight) * frequencyRange;
 
-  return constrainFrequency(rawFrequency, filterWidth);
+  return clampFrequencyToRange(rawFrequency, minFreqHz, maxFreqHz);
 };
 
 export const useCanvasInteraction = ({
   canvasRef,
   filterFreq,
   setFilterFreq,
-  filterWidth,
   enabled = true,
+  minFreqHz = MIN_FREQ_HZ,
+  maxFreqHz = MAX_FREQ_HZ,
 }: UseCanvasInteractionParams) => {
   useEffect(() => {
     if (!enabled) return;
@@ -56,17 +38,17 @@ export const useCanvasInteraction = ({
     if (!canvas) return;
 
     const handleCanvasClick = (event: MouseEvent) => {
-      if (filterFreq) {
-        setFilterFreq(null);
-        return;
-      }
-
       const rect = canvas.getBoundingClientRect();
       const y = event.clientY - rect.top;
       const canvasHeight = rect.height;
 
-      const frequency = calculateFrequencyFromY(y, canvasHeight, filterWidth);
-      setFilterFreq(Math.ceil(frequency));
+      const frequency = calculateFrequencyFromY(
+        y,
+        canvasHeight,
+        minFreqHz,
+        maxFreqHz,
+      );
+      setFilterFreq(Math.round(frequency));
     };
 
     canvas.addEventListener("click", handleCanvasClick);
@@ -74,7 +56,7 @@ export const useCanvasInteraction = ({
     return () => {
       canvas.removeEventListener("click", handleCanvasClick);
     };
-  }, [filterFreq, setFilterFreq, filterWidth, canvasRef, enabled]);
+  }, [setFilterFreq, canvasRef, enabled, minFreqHz, maxFreqHz]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -95,7 +77,7 @@ export const useCanvasInteraction = ({
         newFreq -= step;
       }
 
-      newFreq = constrainFrequency(newFreq, filterWidth);
+      newFreq = clampFrequencyToRange(newFreq, minFreqHz, maxFreqHz);
       setFilterFreq(Math.round(newFreq));
     };
 
@@ -104,5 +86,5 @@ export const useCanvasInteraction = ({
     return () => {
       canvas.removeEventListener("wheel", handleWheel);
     };
-  }, [filterFreq, setFilterFreq, filterWidth, canvasRef, enabled]);
+  }, [filterFreq, setFilterFreq, canvasRef, enabled, minFreqHz, maxFreqHz]);
 };

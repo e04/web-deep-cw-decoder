@@ -42,33 +42,42 @@ export const useDecode = ({
   audioBufferRef,
   enabled = true,
 }: UseDecodeParams) => {
-  const [loadedEnBackend, setLoadedEnBackend] =
-    useState<InferenceBackend | null>(null);
-  const [loadedJaBackend, setLoadedJaBackend] =
-    useState<InferenceBackend | null>(null);
+  const [loadedEnSignature, setLoadedEnSignature] = useState<string | null>(
+    null,
+  );
+  const [loadedJaSignature, setLoadedJaSignature] = useState<string | null>(
+    null,
+  );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [currentText, setCurrentText] = useState("");
+  const [currentTextTick, setCurrentTextTick] = useState(0);
+  const [currentTextVersion, setCurrentTextVersion] =
+    useState<number | null>(null);
   const [currentTextJa, setCurrentTextJa] = useState("");
+  const [currentTextJaTick, setCurrentTextJaTick] = useState(0);
+  const [currentTextJaVersion, setCurrentTextJaVersion] =
+    useState<number | null>(null);
   const [isDecoding, setIsDecoding] = useState(false);
 
   const filterParamsRef = useRef({ filterFreq, filterWidth });
+  const modelSelectionSignature = backend;
 
-  const loaded = loadedEnBackend === backend;
-  const loadedJa = loadedJaBackend === backend;
+  const loaded = loadedEnSignature === modelSelectionSignature;
+  const loadedJa = loadedJaSignature === modelSelectionSignature;
 
   useEffect(() => {
     setLoadError(null);
   }, [backend, language]);
 
   useEffect(() => {
-    if (loaded) return;
+    if (!enabled || loaded) return;
 
     let cancelled = false;
 
-    void loadModel("en", backend)
+    void loadModel("en", backend, "standard")
       .then(() => {
         if (!cancelled) {
-          setLoadedEnBackend(backend);
+          setLoadedEnSignature(modelSelectionSignature);
         }
       })
       .catch((error) => {
@@ -84,17 +93,17 @@ export const useDecode = ({
     return () => {
       cancelled = true;
     };
-  }, [backend, loaded]);
+  }, [backend, enabled, loaded, modelSelectionSignature]);
 
   useEffect(() => {
-    if (language !== "EN/JA" || loadedJa) return;
+    if (!enabled || language !== "EN/JA" || loadedJa) return;
 
     let cancelled = false;
 
-    void loadModel("ja", backend)
+    void loadModel("ja", backend, "standard")
       .then(() => {
         if (!cancelled) {
-          setLoadedJaBackend(backend);
+          setLoadedJaSignature(modelSelectionSignature);
         }
       })
       .catch((error) => {
@@ -110,7 +119,13 @@ export const useDecode = ({
     return () => {
       cancelled = true;
     };
-  }, [backend, language, loadedJa]);
+  }, [
+    backend,
+    enabled,
+    language,
+    loadedJa,
+    modelSelectionSignature,
+  ]);
 
   useEffect(() => {
     filterParamsRef.current = { filterFreq, filterWidth };
@@ -118,7 +133,11 @@ export const useDecode = ({
 
   useEffect(() => {
     setCurrentText("");
+    setCurrentTextTick(0);
+    setCurrentTextVersion(null);
     setCurrentTextJa("");
+    setCurrentTextJaTick(0);
+    setCurrentTextJaVersion(null);
   }, [backend, decodeWindowSeconds]);
 
   useEffect(() => {
@@ -146,9 +165,10 @@ export const useDecode = ({
 
         lastAudioVersion = audioVersion;
         const { filterFreq, filterWidth } = filterParamsRef.current;
+        const sampleSnapshot = audioBufferRef.current.samples.slice();
 
         const textEn = await runInference(
-          audioBufferRef.current.samples,
+          sampleSnapshot,
           filterFreq,
           filterWidth,
           { lang: "en", backend },
@@ -157,10 +177,12 @@ export const useDecode = ({
           return;
         }
         setCurrentText(textEn);
+        setCurrentTextTick((tick) => tick + 1);
+        setCurrentTextVersion(audioVersion);
 
         if (language === "EN/JA" && loadedJa) {
           const textJa = await runInference(
-            audioBufferRef.current.samples,
+            sampleSnapshot,
             filterFreq,
             filterWidth,
             { lang: "ja", backend },
@@ -169,6 +191,8 @@ export const useDecode = ({
             return;
           }
           setCurrentTextJa(textJa);
+          setCurrentTextJaTick((tick) => tick + 1);
+          setCurrentTextJaVersion(audioVersion);
         }
       }
     };
@@ -180,14 +204,26 @@ export const useDecode = ({
       cancelled = true;
       setIsDecoding(false);
     };
-  }, [audioBufferRef, backend, enabled, language, loaded, loadedJa, stream]);
+  }, [
+    audioBufferRef,
+    backend,
+    enabled,
+    language,
+    loaded,
+    loadedJa,
+    stream,
+  ]);
 
   return {
     loaded,
     loadedJa,
     loadError,
     currentText,
+    currentTextTick,
+    currentTextVersion,
     currentTextJa,
+    currentTextJaTick,
+    currentTextJaVersion,
     isDecoding,
   };
 };

@@ -1,14 +1,14 @@
 # DeepCW (web-deep-cw-decoder)
 
-[DEMO](https://e04.github.io/web-deep-cw-decoder/)
+[DEMO](https://cw.e04.workers.dev/)
 
-<img width="825" height="514" alt="web-deep-cw" src="https://github.com/user-attachments/assets/a224be0a-a685-4dd8-be99-d0f376a43aa2" />
+<img width="400" src="https://github.com/user-attachments/assets/bd9c696b-b8c7-4040-8502-7859729ec8d9" />
 
-This is a web-based, real-time Morse code (CW) decoder powered by a CRNN (Convolutional Recurrent Neural Network) model with a CTC Loss function.
+This is a web-based, real-time Morse code (CW) decoder powered by a neural network model.
 
 A key feature of this application is its client-side processing architecture. By leveraging ONNX Runtime Web, the entire decoding process runs completely within your browser.
 
-The neural network model has been trained on an extensive dataset of 50 hours of programmatically generated Morse code audio, enabling it to achieve high accuracy across various sending speeds and conditions.
+The neural network model has been trained on an dataset of programmatically generated audio.
 
 ## Features
 
@@ -16,9 +16,3 @@ The neural network model has been trained on an extensive dataset of 50 hours of
 - **Audio visualization** with spectrum scope style display
 - **Browser-based** - no installation required
 - **Multiplatform** - supports Windows/mac/Android/iOS devices
-
-## Usage
-
-Open this page:
-
-[https://e04.github.io/web-deep-cw-decoder/](https://e04.github.io/web-deep-cw-decoder/)

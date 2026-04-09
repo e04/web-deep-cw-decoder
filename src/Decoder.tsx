@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import { useMediaQuery } from "@mantine/hooks";
 import {
+  DEFAULT_DECODE_CENTER_FREQ_HZ,
   DEFAULT_DECODE_BANDWIDTH_HZ,
   DEFAULT_DECODE_WINDOW_S,
   DECODE_WINDOW_OPTIONS,
@@ -7,19 +9,25 @@ import {
   PILEUP_WINDOW_S,
   PILEUP_MIN_FREQ_HZ,
   PILEUP_MAX_FREQ_HZ,
+  WIDE_LAYOUT_WIDTH_PX,
   type DecodeWindowSeconds,
 } from "./const";
 import { Scope } from "./Scope";
 import { useDecode } from "./useDecode";
 import { useAudioProcessing } from "./hooks/useAudioProcessing";
+import { useAudioPassthrough } from "./hooks/useAudioPassthrough";
+import { useFilteredPassthroughStream } from "./hooks/useFilteredPassthroughStream";
 import { useLoadProgress } from "./hooks/useLoadProgress";
 import { usePileupDecode } from "./hooks/usePileupDecode";
+import { usePileupDetection } from "./hooks/usePileupDetection";
 import { usePersistedState } from "./hooks/usePersistedState";
+import { useStreamingDecode } from "./hooks/useStreamingDecode";
 import { DecodeDisplay } from "./DecodeDisplay";
-import { Histogram } from "./Histogram";
+import { BenchmarkPanel } from "./BenchmarkPanel";
 import { LoadProgressBars } from "./LoadProgressBars";
 import { PileupOverlay } from "./PileupOverlay";
-import type { FrequencyDataState } from "./hooks/useSpectrogramRenderer";
+import { StreamingTranscriptDisplay } from "./StreamingTranscriptDisplay";
+import type { PileupTrack } from "./utils/pileupCandidates";
 import { Box, Button, Flex, NativeSelect, Stack, Tooltip } from "@mantine/core";
 import {
   INFERENCE_BACKEND_OPTIONS,
@@ -31,11 +39,17 @@ import {
   parseStringOption,
 } from "./utils/optionUtils";
 
-type DecoderMode = "normal" | "pileup";
+type DecoderMode = "normal" | "pileup" | "benchmark";
 type DecoderLanguage = "EN" | "EN/JA";
 
-const FILTER_WIDTH_OPTIONS = [100, 150, 250] as const;
-const MODE_OPTIONS = ["normal", "pileup"] as const;
+const FILTER_WIDTH_OPTIONS = [
+  100,
+  150,
+  250,
+  500,
+  DEFAULT_DECODE_BANDWIDTH_HZ,
+] as const;
+const MODE_OPTIONS = ["normal", "pileup", "benchmark"] as const;
 const LANGUAGE_OPTIONS: readonly DecoderLanguage[] = ["EN", "EN/JA"];
 const BACKEND_OPTIONS: readonly InferenceBackend[] =
   INFERENCE_BACKEND_OPTIONS.map((option) => option.value);
@@ -47,10 +61,10 @@ export const Decoder = () => {
     (value): value is DecoderMode => hasMatchingOption(value, MODE_OPTIONS),
   );
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [filterFreq, setFilterFreq] = useState<number | null>(null);
+  const [filterFreq, setFilterFreq] = useState(DEFAULT_DECODE_CENTER_FREQ_HZ);
   const [filterWidth, setFilterWidth] = usePersistedState<number>(
     "decoder.filterWidth",
-    250,
+    800,
     (value): value is number => hasMatchingOption(value, FILTER_WIDTH_OPTIONS),
   );
   const [language, setLanguage] = usePersistedState<DecoderLanguage>(
@@ -76,71 +90,134 @@ export const Decoder = () => {
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>(
     [],
   );
-  const [selectedAudioInput, _setSelectedAudioInput] = usePersistedState<string>(
-    "decoder.selectedAudioInput",
-    "",
-    (value): value is string => typeof value === "string",
-  );
+  const [selectedAudioInput, _setSelectedAudioInput] =
+    usePersistedState<string>(
+      "decoder.selectedAudioInput",
+      "",
+      (value): value is string => typeof value === "string",
+    );
+  const [selectedAudioOutput, setSelectedAudioOutput] =
+    usePersistedState<string>(
+      "decoder.selectedAudioOutput",
+      "",
+      (value): value is string => typeof value === "string",
+    );
 
-  const [pileupPeaks, setPileupPeaks] = useState<number[]>([]);
-  const pileupPeaksRef = useRef<number[]>([]);
-  const frequencyDataRef = useRef<FrequencyDataState | null>(null);
-
-  useEffect(() => {
-    pileupPeaksRef.current = pileupPeaks;
-  }, [pileupPeaks]);
+  const pileupTracksRef = useRef<PileupTrack[]>([]);
 
   const isPileup = mode === "pileup";
-
-  // Reset filter when entering pileup mode
-  useEffect(() => {
-    if (isPileup) {
-      setFilterFreq(null);
-      setPileupPeaks([]);
-    }
-  }, [isPileup]);
+  const isBenchmark = mode === "benchmark";
+  const {
+    isSupported: isPassthroughSupported,
+    audioOutputDevices,
+    syncAudioOutputDevices,
+  } = useAudioPassthrough(selectedAudioOutput, () => setSelectedAudioOutput(""));
+  useFilteredPassthroughStream({
+    stream,
+    enabled: mode === "normal",
+    selectedAudioOutput,
+    filterFreq: isPileup ? null : filterFreq,
+    filterWidth,
+  });
 
   useEffect(() => {
     if (
       selectedAudioInput &&
       audioInputDevices.length > 0 &&
-      !audioInputDevices.some((device) => device.deviceId === selectedAudioInput)
+      !audioInputDevices.some(
+        (device) => device.deviceId === selectedAudioInput,
+      )
     ) {
       _setSelectedAudioInput("");
     }
-  }, [audioInputDevices, selectedAudioInput]);
+  }, [audioInputDevices, selectedAudioInput, _setSelectedAudioInput]);
 
-  const effectiveWindowSeconds = isPileup ? PILEUP_WINDOW_S : decodeWindowSeconds;
+  useEffect(() => {
+    if (!isBenchmark || !stream) {
+      return;
+    }
+
+    stream.getTracks().forEach((track) => track.stop());
+    setStream(null);
+  }, [isBenchmark, stream]);
+
+  const effectiveWindowSeconds = isPileup
+    ? PILEUP_WINDOW_S
+    : decodeWindowSeconds;
   const progressLanguage = isPileup ? "EN" : language;
 
   const audioBufferRef = useAudioProcessing(stream, effectiveWindowSeconds);
-  const loadProgress = useLoadProgress(backend, progressLanguage);
+  const loadProgress = useLoadProgress(
+    backend,
+    progressLanguage,
+    isPileup ? "narrow" : "standard",
+    isPileup,
+  );
 
   const {
     loaded,
     loadedJa,
-    loadError,
+    loadError: normalLoadError,
     currentText,
+    currentTextTick,
+    currentTextVersion,
     currentTextJa,
+    currentTextJaTick,
+    currentTextJaVersion,
     isDecoding,
-  } =
-    useDecode({
-      filterFreq: isPileup ? null : filterFreq,
-      filterWidth,
-      stream,
-      language: isPileup ? "EN" : language,
-      backend,
-      decodeWindowSeconds: effectiveWindowSeconds,
-      audioBufferRef,
-      enabled: !isPileup,
-    });
-
-  const { textMap, isDecoding: isPileupDecoding } = usePileupDecode({
+  } = useDecode({
+    filterFreq: isPileup ? null : filterFreq,
+    filterWidth,
     stream,
-    loaded,
+    language: isPileup ? "EN" : language,
+    backend,
+    decodeWindowSeconds: effectiveWindowSeconds,
+    audioBufferRef,
+    enabled: mode === "normal",
+  });
+
+  const {
+    segments: streamingSegments,
+    pendingText: streamingPendingText,
+    pendingTextJa: streamingPendingTextJa,
+    loadError: streamingLoadError,
+  } = useStreamingDecode({
+    filterFreq: isPileup ? null : filterFreq,
+    filterWidth,
+    stream,
+    language: isPileup ? "EN" : language,
+    backend,
+    enabled: mode === "normal",
+  });
+
+  const {
+    tracks: pileupTracks,
+    isDetecting: isPileupDetecting,
+    loaded: pileupDetectionLoaded,
+    loadError: pileupDetectionLoadError,
+  } = usePileupDetection({
+    stream,
     backend,
     audioBufferRef,
-    peakFrequenciesRef: pileupPeaksRef,
+    enabled: isPileup,
+    minFreqHz: PILEUP_MIN_FREQ_HZ,
+    maxFreqHz: PILEUP_MAX_FREQ_HZ,
+  });
+
+  useEffect(() => {
+    pileupTracksRef.current = pileupTracks;
+  }, [pileupTracks]);
+
+  const {
+    textMap,
+    isDecoding: isPileupDecoding,
+    loaded: pileupLoaded,
+    loadError: pileupLoadError,
+  } = usePileupDecode({
+    stream,
+    backend,
+    audioBufferRef,
+    tracksRef: pileupTracksRef,
     enabled: isPileup,
     decodeWindowSeconds: effectiveWindowSeconds,
   });
@@ -148,6 +225,15 @@ export const Decoder = () => {
   const setSelectedAudioInput = (deviceId: string) => {
     _setSelectedAudioInput(deviceId);
     getStream(deviceId);
+  };
+
+  const refreshAudioDevices = async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(
+      (device) => device.kind === "audioinput",
+    );
+    setAudioInputDevices(audioInputs);
+    syncAudioOutputDevices(devices);
   };
 
   const getStream = async (selectedAudioInput?: string) => {
@@ -169,53 +255,49 @@ export const Decoder = () => {
     });
 
     setStream(newStream);
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioInputs = devices.filter(
-      (device) => device.kind === "audioinput",
-    );
-    setAudioInputDevices(audioInputs);
+    await refreshAudioDevices();
   };
 
-  const isLoading = !loaded || (!isPileup && language === "EN/JA" && !loadedJa);
-  const isFilterEnabled = filterFreq !== null;
-  const activeFilterWidth = isFilterEnabled
-    ? filterWidth
-    : DEFAULT_DECODE_BANDWIDTH_HZ;
-  const showJapaneseDisplay = !isPileup && language === "EN/JA";
-  const isActive = isPileup ? isPileupDecoding : isDecoding;
+  const loadError = isPileup
+    ? (pileupDetectionLoadError ?? pileupLoadError)
+    : isBenchmark
+    ? null
+    : (normalLoadError ?? streamingLoadError);
+  const isLoading = isPileup
+    ? !pileupLoaded || !pileupDetectionLoaded
+    : isBenchmark
+    ? false
+    : !loaded || (language === "EN/JA" && !loadedJa);
+  const showJapaneseDisplay = mode === "normal" && language === "EN/JA";
+  const isActive = isBenchmark
+    ? false
+    : isPileup
+    ? isPileupDecoding || isPileupDetecting
+    : isDecoding;
   const scopeHeight = isPileup ? 768 : 256;
+  const isWideViewport = useMediaQuery("(min-width: 801px)", true, {
+    getInitialValueInEffect: false,
+  });
+  const showSideControls = useMediaQuery(
+    `(min-width: ${WIDE_LAYOUT_WIDTH_PX}px)`,
+    true,
+    {
+      getInitialValueInEffect: false,
+    },
+  );
+  const decoderEdgePadding = isWideViewport ? 8 : 0;
+  const controlJustify = showSideControls ? "flex-start" : "flex-end";
+  const controlPanelStyle = showSideControls
+    ? { width: "420px", maxWidth: "100%" }
+    : undefined;
+  const controlRowStyle = showSideControls ? { width: "100%" } : undefined;
+  const contentWidthSelectStyle = { width: "fit-content" } as const;
 
-  return (
-    <Stack gap={8}>
-      <Flex justify="space-between" align="center">
-        <Flex gap="sm">
-          <Button
-            w={200}
-            color={isActive ? "red" : "indigo"}
-            onClick={() => {
-              if (isActive) {
-                setStream(null);
-              } else {
-                getStream(selectedAudioInput ?? undefined);
-              }
-            }}
-            disabled={isLoading}
-          >
-            {isActive ? "STOP" : "START"}
-          </Button>
-          <LoadProgressBars progress={loadProgress} />
-          {loadError && (
-            <Box
-              style={{ color: "var(--mantine-color-red-4)", fontSize: "14px" }}
-            >
-              {loadError}
-            </Box>
-          )}
-        </Flex>
-      </Flex>
-
-      <Stack gap={0}>
+  const mainContent = isBenchmark ? (
+    <BenchmarkPanel />
+  ) : (
+    <Stack gap={0}>
+      <Box px={decoderEdgePadding}>
         <Flex gap={0}>
           <Box pos="relative" style={{ flex: 1, minWidth: 0 }}>
             {stream ? (
@@ -225,11 +307,14 @@ export const Decoder = () => {
                 filterFreq={isPileup ? null : filterFreq}
                 filterWidth={filterWidth}
                 decodeWindowSeconds={effectiveWindowSeconds}
-                frequencyDataRef={frequencyDataRef}
                 disableInteraction={isPileup}
                 height={scopeHeight}
-                canvasClassName={isPileup ? "scopeCanvas--pileup" : undefined}
-                {...(isPileup && { minFreqHz: PILEUP_MIN_FREQ_HZ, maxFreqHz: PILEUP_MAX_FREQ_HZ })}
+                brightness={isPileup ? 0.75 : 1}
+                maxDevicePixelRatio={isPileup ? 1.25 : undefined}
+                {...(isPileup && {
+                  minFreqHz: PILEUP_MIN_FREQ_HZ,
+                  maxFreqHz: PILEUP_MAX_FREQ_HZ,
+                })}
               />
             ) : (
               <Box
@@ -242,7 +327,7 @@ export const Decoder = () => {
             )}
             {isPileup && stream && (
               <PileupOverlay
-                peakFrequencies={pileupPeaks}
+                tracks={pileupTracks}
                 textMap={textMap}
                 isDecoding={isPileupDecoding}
                 decodeWindowSeconds={effectiveWindowSeconds}
@@ -251,95 +336,165 @@ export const Decoder = () => {
               />
             )}
           </Box>
-          {isPileup && stream && (
-            <Histogram
-              frequencyDataRef={frequencyDataRef}
-              peakFrequencies={pileupPeaks}
-              onPeaksChanged={setPileupPeaks}
-              height={scopeHeight}
-              minFreqHz={PILEUP_MIN_FREQ_HZ}
-              maxFreqHz={PILEUP_MAX_FREQ_HZ}
-            />
-          )}
         </Flex>
+      </Box>
 
-        {!isPileup && (
-          <Stack gap={0}>
-            <DecodeDisplay
-              text={currentText}
-              isDecoding={isDecoding}
-              decodeWindowSeconds={decodeWindowSeconds}
-            />
-
-            {showJapaneseDisplay && (
+      {!isPileup && (
+        <Box px={decoderEdgePadding}>
+          <Stack gap="xs">
+            <Stack gap={0}>
               <DecodeDisplay
-                text={currentTextJa}
+                text={currentText}
                 isDecoding={isDecoding}
-                backgroundColor="#36021e"
                 decodeWindowSeconds={decodeWindowSeconds}
+                animationTick={currentTextTick}
+                animationVersion={currentTextVersion}
               />
-            )}
-          </Stack>
-        )}
-      </Stack>
 
-      <Stack gap="xs" align="flex-end">
-        <Flex gap="md" justify="flex-end" wrap="wrap">
-          <NativeSelect
-            label="ENGINE"
-            data={INFERENCE_BACKEND_OPTIONS}
-            value={backend}
-            onChange={(event) => {
-              const nextBackend = parseStringOption(
-                event.currentTarget.value,
-                BACKEND_OPTIONS,
-              );
-              if (nextBackend !== undefined) {
-                setBackend(nextBackend);
-              }
-            }}
-          />
-          <Tooltip label="Available after starting the decoder." withArrow>
-            <Box>
+              {showJapaneseDisplay && (
+                <DecodeDisplay
+                  text={currentTextJa}
+                  isDecoding={isDecoding}
+                  backgroundColor="#36021e"
+                  decodeWindowSeconds={decodeWindowSeconds}
+                  animationTick={currentTextJaTick}
+                  animationVersion={currentTextJaVersion}
+                />
+              )}
+            </Stack>
+
+            <Stack gap={0}>
+              <StreamingTranscriptDisplay
+                segments={streamingSegments}
+                pendingText={streamingPendingText}
+                variant="en"
+                backgroundColor="var(--mantine-color-dark-9)"
+                backend={backend}
+              />
+              {showJapaneseDisplay && (
+                <StreamingTranscriptDisplay
+                  segments={streamingSegments}
+                  pendingText={streamingPendingTextJa}
+                  variant="ja"
+                  backgroundColor="#36021e"
+                  backend={backend}
+                  enableRedecodePopup
+                />
+              )}
+            </Stack>
+          </Stack>
+        </Box>
+      )}
+    </Stack>
+  );
+
+  const controlPanel = (
+    <Stack
+      gap="xs"
+      align={showSideControls ? "flex-start" : "flex-end"}
+      style={controlPanelStyle}
+    >
+      <Flex
+        gap="md"
+        justify={controlJustify}
+        wrap="wrap"
+        style={controlRowStyle}
+      >
+        <NativeSelect
+          label="MODE"
+          data={[
+            { value: "normal", label: "Normal" },
+            { value: "pileup", label: "Pileup" },
+            { value: "benchmark", label: "Benchmark" },
+          ]}
+          value={mode}
+          onChange={(event) => {
+            const nextMode = parseStringOption(
+              event.currentTarget.value,
+              MODE_OPTIONS,
+            );
+            if (nextMode !== undefined) {
+              setMode(nextMode);
+            }
+          }}
+          style={contentWidthSelectStyle}
+        />
+        {!isBenchmark && (
+          <>
+            <NativeSelect
+              label="ENGINE"
+              data={INFERENCE_BACKEND_OPTIONS}
+              value={backend}
+              onChange={(event) => {
+                const nextBackend = parseStringOption(
+                  event.currentTarget.value,
+                  BACKEND_OPTIONS,
+                );
+                if (nextBackend !== undefined) {
+                  setBackend(nextBackend);
+                }
+              }}
+              style={contentWidthSelectStyle}
+            />
+          </>
+        )}
+      </Flex>
+      {!isBenchmark && (
+        <>
+          <Flex
+            gap="md"
+            justify={controlJustify}
+            wrap="wrap"
+            style={controlRowStyle}
+          >
+            <Tooltip label="Available after starting the decoder." withArrow>
+              <Box>
+                <NativeSelect
+                  w={200}
+                  label="INPUT"
+                  data={audioInputDevices.map((device) => ({
+                    value: device.deviceId,
+                    label:
+                      device.label ||
+                      `Device ${audioInputDevices.indexOf(device) + 1}`,
+                  }))}
+                  value={selectedAudioInput}
+                  onChange={(event) =>
+                    setSelectedAudioInput(event.currentTarget.value)
+                  }
+                  disabled={!stream}
+                />
+              </Box>
+            </Tooltip>
+            {isPassthroughSupported && (
               <NativeSelect
                 w={200}
-                label="INPUT"
-                data={audioInputDevices.map((device) => ({
-                  value: device.deviceId,
-                  label:
-                    device.label ||
-                    `Device ${audioInputDevices.indexOf(device) + 1}`,
-                }))}
-                value={selectedAudioInput}
+                label="THRU"
+                data={[
+                  { value: "", label: "None" },
+                  ...audioOutputDevices.map((device) => ({
+                    value: device.deviceId,
+                    label:
+                      device.label ||
+                      `Device ${audioOutputDevices.indexOf(device) + 1}`,
+                  })),
+                ]}
+                value={selectedAudioOutput}
                 onChange={(event) =>
-                  setSelectedAudioInput(event.currentTarget.value)
+                  setSelectedAudioOutput(event.currentTarget.value)
                 }
                 disabled={!stream}
               />
-            </Box>
-          </Tooltip>
-          <NativeSelect
-            label="MODE"
-            data={[
-              { value: "normal", label: "Normal" },
-              { value: "pileup", label: "Pileup" },
-            ]}
-            value={mode}
-            onChange={(event) => {
-              const nextMode = parseStringOption(
-                event.currentTarget.value,
-                MODE_OPTIONS,
-              );
-              if (nextMode !== undefined) {
-                setMode(nextMode);
-              }
-            }}
-          />
-        </Flex>
-        {!isPileup && (
-          <Flex gap="md" justify="flex-end" wrap="wrap">
-            <Tooltip label="Shorter windows are more accurate." withArrow>
-              <Box>
+            )}
+          </Flex>
+          <Flex
+            gap="md"
+            justify={controlJustify}
+            wrap="wrap"
+            style={controlRowStyle}
+          >
+            {!isPileup && (
+              <>
                 <NativeSelect
                   label="WINDOW"
                   data={DECODE_WINDOW_OPTIONS.map((seconds) => ({
@@ -357,54 +512,106 @@ export const Decoder = () => {
                     }
                   }}
                   rightSection={"s"}
+                  style={contentWidthSelectStyle}
                 />
-              </Box>
-            </Tooltip>
-            <Tooltip label="Click the scope to enable the filter." withArrow>
-              <Box>
+                <Tooltip
+                  label="Click the scope to move the decode band. Use the mouse wheel to fine-tune it."
+                  withArrow
+                >
+                  <Box>
+                    <NativeSelect
+                      label="BANDWIDTH"
+                      data={FILTER_WIDTH_OPTIONS.map((width) => ({
+                        value: width.toString(),
+                        label: width.toString(),
+                      }))}
+                      value={filterWidth.toString()}
+                      onChange={(event) => {
+                        const nextWidth = parseNumberOption(
+                          event.currentTarget.value,
+                          FILTER_WIDTH_OPTIONS,
+                        );
+                        if (nextWidth !== undefined) {
+                          setFilterWidth(nextWidth);
+                        }
+                      }}
+                      rightSection={"Hz"}
+                      style={contentWidthSelectStyle}
+                    />
+                  </Box>
+                </Tooltip>
                 <NativeSelect
-                  label="FIL WID"
-                  data={[
-                    {
-                      value: DEFAULT_DECODE_BANDWIDTH_HZ.toString(),
-                      label: `${DEFAULT_DECODE_BANDWIDTH_HZ} (OFF)`,
-                    },
-                    { value: "100", label: "100" },
-                    { value: "150", label: "150" },
-                    { value: "250", label: "250" },
-                  ]}
-                  value={activeFilterWidth.toString()}
+                  label="CW LANG"
+                  data={["EN", "EN/JA"]}
+                  value={language}
                   onChange={(event) => {
-                    const nextWidth = Number(event.currentTarget.value);
-                    if (nextWidth === DEFAULT_DECODE_BANDWIDTH_HZ) {
-                      setFilterFreq(null);
-                      return;
+                    const nextLanguage = parseStringOption(
+                      event.currentTarget.value,
+                      LANGUAGE_OPTIONS,
+                    );
+                    if (nextLanguage !== undefined) {
+                      setLanguage(nextLanguage);
                     }
-
-                    setFilterWidth(nextWidth);
                   }}
-                  disabled={!isFilterEnabled}
-                  rightSection={"Hz"}
+                  style={contentWidthSelectStyle}
                 />
-              </Box>
-            </Tooltip>
-            <NativeSelect
-              label="CW LANG"
-              data={["EN", "EN/JA"]}
-              value={language}
-              onChange={(event) => {
-                const nextLanguage = parseStringOption(
-                  event.currentTarget.value,
-                  LANGUAGE_OPTIONS,
-                );
-                if (nextLanguage !== undefined) {
-                  setLanguage(nextLanguage);
-                }
-              }}
-            />
+              </>
+            )}
           </Flex>
-        )}
-      </Stack>
+        </>
+      )}
+    </Stack>
+  );
+
+  return (
+    <Stack gap={8}>
+      {!isBenchmark && (
+        <Box px={8}>
+          <Flex justify="space-between" align="flex-start">
+            <Flex gap="sm" align="flex-start" style={{ flex: 1, minWidth: 0 }}>
+              <Button
+                w={200}
+                color={isActive ? "red" : "indigo"}
+                onClick={() => {
+                  if (isActive) {
+                    setStream(null);
+                  } else {
+                    getStream(selectedAudioInput ?? undefined);
+                  }
+                }}
+                disabled={isLoading}
+              >
+                {isActive ? "STOP" : "START"}
+              </Button>
+              <Box style={{ flex: 1, minWidth: 0, maxWidth: "400px" }}>
+                <LoadProgressBars progress={loadProgress} />
+              </Box>
+              {loadError && (
+                <Box
+                  style={{
+                    color: "var(--mantine-color-red-4)",
+                    fontSize: "14px",
+                  }}
+                >
+                  {loadError}
+                </Box>
+              )}
+            </Flex>
+          </Flex>
+        </Box>
+      )}
+
+      {showSideControls ? (
+        <Flex gap="md" align="flex-start">
+          <Box style={{ flex: 1, minWidth: 0 }}>{mainContent}</Box>
+          <Box pr={8}>{controlPanel}</Box>
+        </Flex>
+      ) : (
+        <>
+          {mainContent}
+          <Box px={8}>{controlPanel}</Box>
+        </>
+      )}
     </Stack>
   );
 };

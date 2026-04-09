@@ -1,43 +1,57 @@
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { Box } from "@mantine/core";
 import { MIN_FREQ_HZ, MAX_FREQ_HZ } from "./const";
 import { useSpectrogramRenderer } from "./hooks/useSpectrogramRenderer";
-import type { FrequencyDataState } from "./hooks/useSpectrogramRenderer";
 import { useCanvasInteraction } from "./hooks/useCanvasInteraction";
 import { calculateBandPosition } from "./utils/frequencyUtils";
 
 type ScopeProps = {
   stream: MediaStream;
-  setFilterFreq: (freq: number | null) => void;
+  setFilterFreq: (freq: number) => void;
   filterFreq: number | null;
   filterWidth: number;
   decodeWindowSeconds: number;
-  frequencyDataRef?: React.MutableRefObject<FrequencyDataState | null>;
   disableInteraction?: boolean;
   height?: number;
   minFreqHz?: number;
   maxFreqHz?: number;
-  canvasClassName?: string;
+  brightness?: number;
+  maxDevicePixelRatio?: number;
 };
 
-export const Scope = ({
+export const Scope = memo(function Scope({
   stream,
   setFilterFreq,
   filterFreq,
   filterWidth,
   decodeWindowSeconds,
-  frequencyDataRef,
   disableInteraction,
   height = 256,
   minFreqHz = MIN_FREQ_HZ,
   maxFreqHz = MAX_FREQ_HZ,
-  canvasClassName,
-}: ScopeProps) => {
+  brightness,
+  maxDevicePixelRatio,
+}: ScopeProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  useSpectrogramRenderer({ stream, canvasRef, decodeWindowSeconds, frequencyDataRef, minFreqHz, maxFreqHz });
+  useSpectrogramRenderer({
+    stream,
+    canvasRef,
+    decodeWindowSeconds,
+    minFreqHz,
+    maxFreqHz,
+    brightness,
+    maxDevicePixelRatio,
+  });
 
-  useCanvasInteraction({ canvasRef, filterFreq, setFilterFreq, filterWidth, enabled: !disableInteraction });
+  useCanvasInteraction({
+    canvasRef,
+    filterFreq,
+    setFilterFreq,
+    enabled: !disableInteraction,
+    minFreqHz,
+    maxFreqHz,
+  });
 
   const { topPercent, heightPercent } = calculateBandPosition(
     filterFreq,
@@ -51,7 +65,6 @@ export const Scope = ({
       <Box
         component="canvas"
         ref={canvasRef}
-        className={canvasClassName}
         style={{
           display: "block",
           background: "var(--mantine-color-dark-9)",
@@ -75,4 +88,4 @@ export const Scope = ({
       )}
     </Box>
   );
-};
+});

@@ -219,15 +219,15 @@ export class STFT {
     this.fftSize = fftSize;
     this.hopSize = hopSize;
     this.fft = new FFT(fftSize);
-    this.window = this.generateHanningWindow();
+    this.window = this.generateHannWindow();
     this.frame = new Float32Array(this.fftSize);
     this.complexFrame = new Float32Array(this.fftSize * 2);
   }
 
-  private generateHanningWindow(): Float32Array {
+  private generateHannWindow(): Float32Array {
     const window = new Float32Array(this.fftSize);
     for (let i = 0; i < this.fftSize; i++) {
-      window[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.fftSize - 1)));
+      window[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / this.fftSize));
     }
     return window;
   }

@@ -2,21 +2,30 @@
 import type * as Ort from "onnxruntime-web";
 
 import {
-  ENGLISH_CONFIG,
-  JAPANESE_CONFIG,
+  PILEUP_FILTER_WIDTH_HZ,
+  PILEUP_MATCH_HZ,
+  PILEUP_MAX_PEAKS,
 } from "../const";
 import {
+  type EnglishModelVariant,
+  type InferenceDecodeMode,
   type InferenceBackend,
   type Lang,
   type LoadProgressStage,
+  type ModelKey,
+  MODEL_KEYS,
   type WorkerRequest,
   type WorkerResponse,
+  getModelKey,
 } from "../utils/inferenceProtocol";
 import {
+  audioToBinSequenceTensor,
+  audioToNarrowShiftedSpectrogramTensor,
   audioToShiftedSpectrogramTensor,
   audioToSpectrogramTensor,
 } from "../utils/spectrogramUtils";
-import { decodePredictions } from "../utils/textDecoder";
+import { selectStrongSeparatedCandidates } from "../utils/pileupCandidates";
+import { decodePredictionsDetailed } from "../utils/textDecoder";
 import ortWasmThreadedModuleUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs?url";
 import ortWasmThreadedBinaryUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm?url";
 import ortWasmJsepModuleUrl from "../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs?url";
@@ -24,10 +33,15 @@ import ortWasmJsepBinaryUrl from "../../node_modules/onnxruntime-web/dist/ort-wa
 
 type OrtModule = typeof Ort;
 
-// Dynamic model URLs using Vite's import.meta.url
-const MODEL_URLS: Record<Lang, string> = {
-  en: new URL(`../${ENGLISH_CONFIG.MODEL_FILE}`, import.meta.url).href,
-  ja: new URL(`../${JAPANESE_CONFIG.MODEL_FILE}`, import.meta.url).href,
+function resolveModelUrl(fileName: string): string {
+  return new URL(`/models/${fileName}`, self.location.origin).toString();
+}
+
+const MODEL_URLS: Record<ModelKey, string> = {
+  cw_detect: resolveModelUrl("detect_cw/88C0EAD8-52C6-460C-9B9F-EE6CB56221F3"),
+  en: resolveModelUrl("en/39578E22-27CE-4AFB-989F-450345767A53"),
+  en_narrow: resolveModelUrl("en_narrow/4C1FFB1B-6F80-4B73-A5D2-6089EAF8E102"),
+  ja: resolveModelUrl("ja/A960AA1B-FFD3-4795-A881-484F4EEB0455"),
 };
 
 const ORT_RUNTIME_ASSETS: Record<
@@ -53,15 +67,17 @@ const ORT_RUNTIME_ASSETS: Record<
   },
 };
 
-const modelDataPromises: Record<Lang, Promise<Uint8Array> | null> = {
-  en: null,
-  ja: null,
-};
+function createModelKeyRecord<T>(createValue: () => T): Record<ModelKey, T> {
+  return Object.fromEntries(
+    MODEL_KEYS.map((modelKey) => [modelKey, createValue()]),
+  ) as Record<ModelKey, T>;
+}
 
-const modelDataCache: Record<Lang, Uint8Array | null> = {
-  en: null,
-  ja: null,
-};
+const modelDataPromises: Record<ModelKey, Promise<Uint8Array> | null> =
+  createModelKeyRecord(() => null);
+
+const modelDataCache: Record<ModelKey, Uint8Array | null> =
+  createModelKeyRecord(() => null);
 
 const ortBinaryPromises: Partial<Record<InferenceBackend, Promise<Uint8Array>>> =
   {};
@@ -72,20 +88,35 @@ const ortModulePromises: Partial<Record<InferenceBackend, Promise<OrtModule>>> =
 
 const sessions: Record<
   InferenceBackend,
-  Record<Lang, Ort.InferenceSession | null>
+  Record<ModelKey, Ort.InferenceSession | null>
 > = {
-  wasm: {
-    en: null,
-    ja: null,
-  },
-  webgpu: {
-    en: null,
-    ja: null,
-  },
+  wasm: createModelKeyRecord(() => null),
+  webgpu: createModelKeyRecord(() => null),
 };
+
+const backendRequestQueues: Partial<Record<InferenceBackend, Promise<void>>> = {};
 
 function clampProgress(progress: number): number {
   return Math.max(0, Math.min(progress, 1));
+}
+
+function queueBackendRequest<T>(
+  backend: InferenceBackend,
+  task: () => Promise<T>,
+): Promise<T> {
+  if (backend !== "webgpu") {
+    return task();
+  }
+
+  const previousTask = backendRequestQueues[backend] ?? Promise.resolve();
+  const nextTask = previousTask.catch(() => undefined).then(task);
+
+  backendRequestQueues[backend] = nextTask.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return nextTask;
 }
 
 async function fetchBinaryWithProgress(
@@ -169,33 +200,33 @@ async function getOrtBinary(
 }
 
 async function getModelData(
-  lang: Lang,
+  modelKey: ModelKey,
   onProgress?: (progress: number) => void,
 ): Promise<Uint8Array> {
-  const cachedModel = modelDataCache[lang];
+  const cachedModel = modelDataCache[modelKey];
   if (cachedModel) {
     onProgress?.(1);
     return cachedModel;
   }
 
-  const cachedPromise = modelDataPromises[lang];
+  const cachedPromise = modelDataPromises[modelKey];
   if (cachedPromise) {
     const model = await cachedPromise;
     onProgress?.(1);
     return model;
   }
 
-  const modelPromise = fetchBinaryWithProgress(MODEL_URLS[lang], onProgress)
+  const modelPromise = fetchBinaryWithProgress(MODEL_URLS[modelKey], onProgress)
     .then((model) => {
-      modelDataCache[lang] = model;
+      modelDataCache[modelKey] = model;
       return model;
     })
     .catch((error) => {
-      modelDataPromises[lang] = null;
+      modelDataPromises[modelKey] = null;
       throw error;
     });
 
-  modelDataPromises[lang] = modelPromise;
+  modelDataPromises[modelKey] = modelPromise;
 
   return modelPromise;
 }
@@ -210,10 +241,10 @@ async function getOrtModule(
   const modulePromise = (async () => {
     const ortBinary = await getOrtBinary(backend, onProgress);
     const ort = backend === "webgpu"
-      ? await import("onnxruntime-web/webgpu")
+      ? await import("onnxruntime-web")
       : await import("onnxruntime-web/wasm");
 
-    // Serve ORT assets from the app itself so decoding still works offline.
+    // Keep ORT runtime assets inside the app bundle so inference still works offline.
     ort.env.wasm.wasmPaths = ORT_RUNTIME_ASSETS[backend].wasmPaths;
     ort.env.wasm.wasmBinary = ortBinary;
 
@@ -226,23 +257,23 @@ async function getOrtModule(
 }
 
 async function ensureSession(
-  lang: Lang,
+  modelKey: ModelKey,
   backend: InferenceBackend,
   onOrtProgress?: (progress: number) => void,
   onModelProgress?: (progress: number) => void,
 ): Promise<Ort.InferenceSession> {
-  const existingSession = sessions[backend][lang];
+  const existingSession = sessions[backend][modelKey];
   if (existingSession) return existingSession;
 
   const [ort, modelData] = await Promise.all([
     getOrtModule(backend, onOrtProgress),
-    getModelData(lang, onModelProgress),
+    getModelData(modelKey, onModelProgress),
   ]);
   const session = await ort.InferenceSession.create(modelData, {
     executionProviders: [backend],
   });
 
-  sessions[backend][lang] = session;
+  sessions[backend][modelKey] = session;
 
   return session;
 }
@@ -254,15 +285,29 @@ async function handleRunInference(
   lang: Lang,
   backend: InferenceBackend,
   shiftTargetFreq?: number,
-): Promise<string> {
+  englishModelVariant: EnglishModelVariant = "standard",
+  decodeMode: InferenceDecodeMode = "display",
+): Promise<{
+  text: string;
+  plainText?: string;
+  wordSpaceSpans?: { startFrame: number; endFrame: number }[];
+  characterSpans?: { char: string; startFrame: number; endFrame: number }[];
+}> {
   const ort = await getOrtModule(backend);
-  const session = await ensureSession(lang, backend);
+  const modelKey = getModelKey(lang, englishModelVariant);
+  const session = await ensureSession(modelKey, backend);
 
-  const spectrogramInput = shiftTargetFreq != null
-    ? audioToShiftedSpectrogramTensor(audioBuffer, shiftTargetFreq)
+  const spectrogramInput = englishModelVariant === "narrow"
+    ? shiftTargetFreq == null
+      ? null
+      : audioToNarrowShiftedSpectrogramTensor(audioBuffer, shiftTargetFreq)
+    : shiftTargetFreq != null
+    ? audioToShiftedSpectrogramTensor(audioBuffer, shiftTargetFreq, filterWidth)
+    : filterFreq != null
+    ? audioToShiftedSpectrogramTensor(audioBuffer, filterFreq, filterWidth)
     : audioToSpectrogramTensor(audioBuffer, filterFreq, filterWidth);
   if (!spectrogramInput) {
-    return "";
+    return { text: "" };
   }
 
   const inputTensor = new ort.Tensor(
@@ -276,13 +321,155 @@ async function handleRunInference(
   const results = await session.run(feeds);
   const outputTensor = results[session.outputNames[0]];
 
-  const decodedTexts = decodePredictions(
+  const decodedResults = decodePredictionsDetailed(
     outputTensor.data,
     outputTensor.dims,
     lang,
   );
+  const decodedResult = decodedResults[0];
 
-  return decodedTexts.length > 0 ? decodedTexts[0] : "";
+  if (!decodedResult) {
+    return { text: "" };
+  }
+
+  if (decodeMode === "plain") {
+    return { text: decodedResult.plainText };
+  }
+
+  if (decodeMode === "detailed") {
+    return {
+      text: decodedResult.displayText,
+      plainText: decodedResult.plainText,
+      wordSpaceSpans: decodedResult.wordSpaceSpans,
+      characterSpans: decodedResult.characterSpans,
+    };
+  }
+
+  return { text: decodedResult.displayText };
+}
+
+async function handleDetectCwBins(
+  audioBuffer: Float32Array,
+  backend: InferenceBackend,
+  minFreqHz: number,
+  maxFreqHz: number,
+  lockSnrThresholdDb: number,
+  releaseSnrThresholdDb: number,
+  lockedFrequencies: number[],
+): Promise<{ frequency: number; snrDb: number }[]> {
+  const ort = await getOrtModule(backend);
+  const session = await ensureSession("cw_detect", backend);
+  const binSequences = audioToBinSequenceTensor(audioBuffer, minFreqHz, maxFreqHz);
+  if (!binSequences) {
+    return [];
+  }
+
+  const inputTensor = new ort.Tensor(
+    "float32",
+    binSequences.data,
+    binSequences.dims,
+  );
+
+  const inputName = session.inputNames[0];
+  const feeds = { [inputName]: inputTensor };
+  const results = await session.run(feeds);
+  const outputTensor = results[session.outputNames[0]];
+  const rawSnrValues = outputTensor.data as Float32Array | number[];
+  const snrValues = new Float32Array(binSequences.frequencies.length);
+  for (let index = 0; index < snrValues.length; index++) {
+    snrValues[index] = Number(rawSnrValues[index] ?? 0);
+  }
+
+  const scoredBins = binSequences.frequencies.map((frequency, index) => ({
+    frequency,
+    snrDb: snrValues[index],
+  }));
+
+  scoredBins.sort((left, right) => right.snrDb - left.snrDb);
+
+  const aboveLockThresholdCandidates = scoredBins.filter(
+    (candidate) => candidate.snrDb >= lockSnrThresholdDb,
+  );
+  const retainedCandidates: { frequency: number; snrDb: number }[] = [];
+  const retainedFrequencies = new Set<number>();
+
+  for (const lockedFrequency of lockedFrequencies) {
+    const retainedCandidate = scoredBins.find(
+      (candidate) =>
+        !retainedFrequencies.has(candidate.frequency) &&
+        Math.abs(candidate.frequency - lockedFrequency) <= PILEUP_MATCH_HZ &&
+        candidate.snrDb >= releaseSnrThresholdDb,
+    );
+
+    if (!retainedCandidate) {
+      continue;
+    }
+
+    retainedCandidates.push(retainedCandidate);
+    retainedFrequencies.add(retainedCandidate.frequency);
+  }
+
+  retainedCandidates.sort((left, right) => right.snrDb - left.snrDb);
+
+  const newLockCandidates = selectStrongSeparatedCandidates(
+    aboveLockThresholdCandidates.filter((candidate) =>
+      retainedCandidates.every(
+        (retainedCandidate) =>
+          Math.abs(retainedCandidate.frequency - candidate.frequency) >=
+          PILEUP_FILTER_WIDTH_HZ,
+      )
+    ),
+    Math.max(0, PILEUP_MAX_PEAKS - retainedCandidates.length),
+    PILEUP_FILTER_WIDTH_HZ,
+  );
+  const selectedCandidates = [...retainedCandidates, ...newLockCandidates];
+  return selectedCandidates;
+}
+
+async function handleRunPileupInference(
+  audioBuffer: Float32Array,
+  backend: InferenceBackend,
+  tracks: { id: number; frequency: number }[],
+): Promise<Record<number, string>> {
+  if (tracks.length === 0) {
+    return {};
+  }
+
+  const ort = await getOrtModule(backend);
+  const session = await ensureSession(getModelKey("en", "narrow"), backend);
+  const inputName = session.inputNames[0];
+  const outputName = session.outputNames[0];
+  const textMap: Record<number, string> = {};
+
+  for (const track of tracks) {
+    const spectrogramInput = audioToNarrowShiftedSpectrogramTensor(
+      audioBuffer,
+      track.frequency,
+    );
+    if (!spectrogramInput) {
+      continue;
+    }
+
+    const inputTensor = new ort.Tensor(
+      "float32",
+      spectrogramInput.data,
+      spectrogramInput.dims,
+    );
+    const results = await session.run({ [inputName]: inputTensor });
+    const outputTensor = results[outputName];
+    const decodedResults = decodePredictionsDetailed(
+      outputTensor.data,
+      outputTensor.dims,
+      "en",
+    );
+    const decodedResult = decodedResults[0];
+
+    if (decodedResult?.displayText) {
+      textMap[track.id] = decodedResult.displayText;
+    }
+  }
+
+  return textMap;
 }
 
 const ctx: DedicatedWorkerGlobalScope =
@@ -297,48 +484,107 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     stage: LoadProgressStage,
     progress: number,
     backend: InferenceBackend,
-    lang?: Lang,
+    modelKey?: ModelKey,
   ) => {
     respond({
       id: requestId,
       type: "loadProgress",
       stage,
       backend,
-      lang,
+      modelKey,
       progress: clampProgress(progress),
     });
   };
 
   try {
-    if (message.type === "loadModel") {
-      await ensureSession(
-        message.lang,
-        message.backend,
-        (progress) => reportProgress("ort", progress, message.backend),
-        (progress) =>
-          reportProgress("model", progress, message.backend, message.lang),
-      );
-      respond({ id: message.id, type: "modelLoaded" });
-      return;
-    }
+    await queueBackendRequest(message.backend, async () => {
+      // onnxruntime-web WebGPU requests are not safe to overlap in one worker.
+      if (message.type === "loadModel") {
+        const modelKey = getModelKey(
+          message.lang,
+          message.englishModelVariant,
+        );
+        await ensureSession(
+          modelKey,
+          message.backend,
+          (progress) => reportProgress("ort", progress, message.backend),
+          (progress) =>
+            reportProgress("model", progress, message.backend, modelKey),
+        );
+        respond({ id: message.id, type: "modelLoaded" });
+        return;
+      }
 
-    if (message.type === "runInference") {
-      const text = await handleRunInference(
-        message.audioBuffer,
-        message.filterFreq,
-        message.filterWidth,
-        message.lang,
-        message.backend,
-        message.shiftTargetFreq,
-      );
-      respond({ id: message.id, type: "inferenceResult", text });
-      return;
-    }
+      if (message.type === "loadCwDetectionModel") {
+        const modelKey: ModelKey = "cw_detect";
+        await ensureSession(
+          modelKey,
+          message.backend,
+          (progress) => reportProgress("ort", progress, message.backend),
+          (progress) =>
+            reportProgress("model", progress, message.backend, modelKey),
+        );
+        respond({ id: message.id, type: "modelLoaded" });
+        return;
+      }
 
-    respond({
-      id: requestId,
-      type: "error",
-      error: "Unsupported worker message type.",
+      if (message.type === "resetCwDetectionState") {
+        respond({ id: message.id, type: "stateReset" });
+        return;
+      }
+
+      if (message.type === "runInference") {
+        const result = await handleRunInference(
+          message.audioBuffer,
+          message.filterFreq,
+          message.filterWidth,
+          message.lang,
+          message.backend,
+          message.shiftTargetFreq,
+          message.englishModelVariant,
+          message.decodeMode,
+        );
+        respond({ id: message.id, type: "inferenceResult", ...result });
+        return;
+      }
+
+      if (message.type === "runPileupInference") {
+        const textMap = await handleRunPileupInference(
+          message.audioBuffer,
+          message.backend,
+          message.tracks,
+        );
+        respond({
+          id: message.id,
+          type: "pileupInferenceResult",
+          textMap,
+        });
+        return;
+      }
+
+      if (message.type === "detectCwBins") {
+        const candidates = await handleDetectCwBins(
+          message.audioBuffer,
+          message.backend,
+          message.minFreqHz,
+          message.maxFreqHz,
+          message.lockSnrThresholdDb,
+          message.releaseSnrThresholdDb,
+          message.lockedFrequencies,
+        );
+        respond({
+          id: message.id,
+          type: "cwDetectionResult",
+          candidates,
+        });
+        return;
+      }
+
+      respond({
+        id: requestId,
+        type: "error",
+        error: "Unsupported worker message type.",
+      });
     });
   } catch (error) {
     const errorMessage =

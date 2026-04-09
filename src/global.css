@@ -1,7 +1,9 @@
-body {
-  font-family: "Roboto Mono", monospace;
+@keyframes popup-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.scopeCanvas--pileup {
-  filter: brightness(0.75);
+body {
+  font-family: "Roboto Mono", monospace;
 }
