@@ -11,10 +11,9 @@ A real-time Morse code (CW) decoder powered by a neural network model.
 - **Real-time Morse code decoding** using machine learning
 - **Robust decoding** for weak signals, QSB, and noisy conditions
 - **Multi-channel decoding** for handling multiple CW signals
-- **Multilingual Morse code support** - currently only supports Japanese Wabun（和文） code
+- **Multilingual Morse code support** - currently only supports Latin and Japanese Wabun（和文） code
 - **Audio pass-through** with noise reduction
 - **Multiplatform** - supports Windows/mac/Android/iOS devices
-
 
 <img width="500" src="https://github.com/user-attachments/assets/3207c5c0-7613-4448-a42b-aac08b8fd030" />
 
