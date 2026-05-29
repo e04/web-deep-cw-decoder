@@ -21,7 +21,7 @@ A real-time Morse code (CW) decoder powered by a neural network model.
 
 ### Benchmark
 
-- Results are from the small model.
+- Results are from balanced mode.
 - Test audio was synthetically generated.
 - SNR is measured over a 2500 Hz bandwidth.
 - Error rate is reported as CER (Character Error Rate), defined as the percentage of inserted, deleted, or substituted characters relative to the reference text.
