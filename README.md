@@ -31,3 +31,8 @@ It achieves 0.00% error from 0 to -4 dB SNR at all tested speeds, and remains ne
 Even under weak-signal conditions, performance degrades gracefully: errors stay below 1.5% at -8 dB and below 8% at -10 dB across the full speed range.
 
 <img width="2000" height="1200" alt="cer_heatmap" src="https://github.com/user-attachments/assets/2c4d82e6-9c06-44e6-81e1-0f4c6a7b498a" />
+
+Audio sample:
+
+https://github.com/user-attachments/assets/4be72fa7-011a-4e06-a2dd-10ba4e60f8c4
+
