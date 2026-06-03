@@ -75,10 +75,7 @@ UISDDM EU AI5DD 56N CO BK BK GA UR 55N 55N TTTK MTKE 73 AE0Q DE AI5D D44EE JI44E
 ##### ggmorse
 
 ```text
-AISDD
-AISDD 56N CO XM TEEE BKGA755N55N OK OK 73AE0E
-TTTTTTKDEAIEAI5DD44EE
-R 44EE EE
+AISDD AISDD 56N CO XM TEEE BKGA755N55N OK OK 73AE0E TTTTTTKDEAIEAI5DD44EE R 44EE EE
 ```
 
 <img width="200" alt="Sample1 ggmorse result" src="https://github.com/user-attachments/assets/dae24c85-0716-4fec-93e8-28deea06f499" />
@@ -106,6 +103,9 @@ D DE JO2QOT JO2QOT 5NN CA 5NN 100 TU JO2QOT TU K6XX
 
 ```text
 5NN 100 TU EM
+```
+
+```text
 JO2Q0T 5NN CA EE JO200T TU K6XX
 ```
 
@@ -122,9 +122,7 @@ JO2Q0T 5NN CA EE JO200T TU K6XX
 ##### ggmorse
 
 ```text
-U
-JO2QOT 5NN CA
-SEGE ?O2QOT TU K6XX
+U JO2QOT 5NN CA SEGE ?O2QOT TU K6XX
 ```
 
 <img width="200" alt="Sample2_ggmorse" src="https://github.com/user-attachments/assets/cb7af155-8b6c-4888-829e-2ed02f56da3a" />
@@ -151,6 +149,9 @@ Source: https://www.youtube.com/shorts/9jgZ94TzRys
 
 ```text
 ? WD4DAN GE ES FB UR 57N 57N CO BKE BK TU GA 73 DE W0ABE TU EE N
+```
+
+```text
 WD4DANWR 54TUGEEUR 56NE 56NE GAEG AE73BKR EE
 ```
 <img width="400" alt="Sample3_cwskimmer" src="https://github.com/user-attachments/assets/4a1b24c5-8225-4ff0-b489-ac65144a9fab" />
@@ -167,10 +168,7 @@ WD4DANWR 54TUGEEUR 56NE 56NE GAEG AE73BKR EE
 ##### ggmorse
 
 ```text
-WD4DAN
-E WD4DAN GE E SFB EEUR E57N 57N CO ?
-E ?TUGE ?56NEEE TEEEE TE IEEEE TESN GA GA 73?
-E?TUGA 73DE W0ABE TUEE /E2S?TTTT
+WD4DAN E WD4DAN GE E SFB EEUR E57N 57N CO ? E ?TUGE ?56NEEE TEEEE TE IEEEE TESN GA GA 73? E?TUGA 73DE W0ABE TUEE /E2S?TTTT
 ```
 
 <img width="200" alt="Sample3_ggmorse" src="https://github.com/user-attachments/assets/ee93b38d-0b1e-46e2-ab81-ccb6249c17fa" />
