@@ -38,7 +38,7 @@ https://github.com/user-attachments/assets/4be72fa7-011a-4e06-a2dd-10ba4e60f8c4
 
 ### Comparison with Other Decoders
 
-To provide context for DeepCW’s performance, we compared it with several established CW decoding tools: CW Skimmer, fldigi, and ggmorse.
+To provide context for DeepCW’s performance, we compared it with several established CW decoding tools: [CW Skimmer,](https://www.dxatlas.com/CwSkimmer/) [fldigi,](https://www.w1hkj.org/) and [ggmorse](https://github.com/ggerganov/ggmorse).
 
 These projects have made valuable contributions to the amateur-radio and Morse-code software ecosystem. The comparison below is not intended as a general ranking of these applications; it reflects only the specific test clips, settings, and evaluation method used in this README.　
 
