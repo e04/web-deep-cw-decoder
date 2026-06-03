@@ -17,7 +17,7 @@ A real-time Morse code (CW) decoder powered by a neural network model.
 
 <img width="800" src="https://github.com/user-attachments/assets/3207c5c0-7613-4448-a42b-aac08b8fd030" />
 
-<img width="800" src="https://github.com/user-attachments/assets/793d2db6-f187-4bb5-8cbf-515dbb300b6c" />
+https://github.com/user-attachments/assets/9d459e46-bf52-40a8-89d4-79c07752bf61
 
 ### Benchmark
 
