@@ -80,7 +80,7 @@ Source: https://www.youtube.com/shorts/9AhkEDs2Sko
 | --- | --- |
 | Reference | <code>D DE JO2QOT JO2QOT 5NN CA 5NN 100 TU JO2QOT TU K6XX</code> |
 | DeepCW | <code>D DE J02Q O T J02QOT 5NN CA 5 NN 100 TU J02QOT TU K6XX</code> |
-| CW Skimmer | <code>5NN 100 TU EM</code><br><code>JO2Q0T 5NN CA EE JO2Q0T TU K6XX</code> |
+| CW Skimmer | <code>5NN 100 TU EM</code><br><code>JO2QOT 5NN CA EE JO2QOT TU K6XX</code> |
 | fldigi | <code>I 5DD EISDD 56N CO HK GA * 55N 55N OK OK 73 AE0Q DE A I 5DD 44EE N</code> |
 | ggmorse | <code>U JO2QOT 5NN CA SEGE ?O2QOT TU K6XX</code> |
 
