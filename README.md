@@ -55,9 +55,9 @@ Source: https://www.youtube.com/shorts/UBlxpe5gvv0
 | --- | --- |
 | Reference | <code>AI5DD AI5DD 56N CO BK BK GA UR 55N 55N OK OK 73 AE0Q DE AI5DD 44 EE R 44 EE EE</code> |
 | DeepCW | <code>AI5DD AI5DD 56N CO BK BK GA UR 55N55N OK OK 73AE0QDE AI5DD 44EE44EE E</code> |
-| CW Skimmer | <code>UISDDM EU AI5DD 56N CO BK BK GA UR 55N 55N TTTK MTKE 73 AE0Q DE AI5D D44EE JI44EE EE</code> |
+| CW Skimmer | <code>UI5DDM EU AI5DD 56N CO BK BK GA UR 55N 55N TTTK MTKE 73 AE0Q DE AI5D D44EE JI44EE EE</code> |
 | fldigi | <code>&#42;EEHSSNJF J02QOT 5NN CA E&#42;S ÅÂ O J02QOT T K6XX</code> |
-| ggmorse | <code>AISDD AISDD 56N CO XM TEEE BKGA755N55N OK OK 73AE0E TTTTTTKDEAIEAI5DD44EE R 44EE EE</code> |
+| ggmorse | <code>AI5DD AI5DD 56N CO XM TEEE BKGA755N55N OK OK 73AE0E TTTTTTKDEAIEAI5DD44EE R 44EE EE</code> |
 
 <details>
 <summary>Screenshots</summary>
@@ -81,7 +81,7 @@ Source: https://www.youtube.com/shorts/9AhkEDs2Sko
 | Reference | <code>D DE JO2QOT JO2QOT 5NN CA 5NN 100 TU JO2QOT TU K6XX</code> |
 | DeepCW | <code>D DE J02Q O T J02QOT 5NN CA 5 NN 100 TU J02QOT TU K6XX</code> |
 | CW Skimmer | <code>5NN 100 TU EM</code><br><code>JO2Q0T 5NN CA EE JO2Q0T TU K6XX</code> |
-| fldigi | <code>I 5DD EISDD 56N CO HK GA &#42; 55N 55N OK OK 73 AE0Q DE A I 5DD 44EE N</code> |
+| fldigi | <code>&#42;EEHSSNJF J02QOT 5NN CA E&#42;S ÅÅ O J02QOT T K6XX</code> |
 | ggmorse | <code>U JO2QOT 5NN CA SEGE ?O2QOT TU K6XX</code> |
 
 <details>
