@@ -56,7 +56,7 @@ Source: https://www.youtube.com/shorts/UBlxpe5gvv0
 | Reference | <code>AI5DD AI5DD 56N CO BK BK GA UR 55N 55N OK OK 73 AE0Q DE AI5DD 44 EE R 44 EE EE</code> |
 | DeepCW | <code>AI5DD AI5DD 56N CO BK BK GA UR 55N55N OK OK 73AE0QDE AI5DD 44EE44EE E</code> |
 | CW Skimmer | <code>UISDDM EU AI5DD 56N CO BK BK GA UR 55N 55N TTTK MTKE 73 AE0Q DE AI5D D44EE JI44EE EE</code> |
-| fldigi | <code>*EEHSSNJF J02QOT 5NN CA E*S ÅÂ O J02QOT T K6XX</code> |
+| fldigi | <code>&#42;EEHSSNJF J02QOT 5NN CA E&#42;S ÅÂ O J02QOT T K6XX</code> |
 | ggmorse | <code>AISDD AISDD 56N CO XM TEEE BKGA755N55N OK OK 73AE0E TTTTTTKDEAIEAI5DD44EE R 44EE EE</code> |
 
 <details>
@@ -80,8 +80,8 @@ Source: https://www.youtube.com/shorts/9AhkEDs2Sko
 | --- | --- |
 | Reference | <code>D DE JO2QOT JO2QOT 5NN CA 5NN 100 TU JO2QOT TU K6XX</code> |
 | DeepCW | <code>D DE J02Q O T J02QOT 5NN CA 5 NN 100 TU J02QOT TU K6XX</code> |
-| CW Skimmer | <code>5NN 100 TU EM</code><br><code>JO2QOT 5NN CA EE JO2QOT TU K6XX</code> |
-| fldigi | <code>I 5DD EISDD 56N CO HK GA * 55N 55N OK OK 73 AE0Q DE A I 5DD 44EE N</code> |
+| CW Skimmer | <code>5NN 100 TU EM</code><br><code>JO2Q0T 5NN CA EE JO2Q0T TU K6XX</code> |
+| fldigi | <code>I 5DD EISDD 56N CO HK GA &#42; 55N 55N OK OK 73 AE0Q DE A I 5DD 44EE N</code> |
 | ggmorse | <code>U JO2QOT 5NN CA SEGE ?O2QOT TU K6XX</code> |
 
 <details>
@@ -106,7 +106,7 @@ Source: https://www.youtube.com/shorts/9jgZ94TzRys
 | Reference | <code>? WD4DAN WD4DAN GE ES FB UR 57N 57N CO BK BK TU GE UR 56N 56N GA GA 73 BK BK TU GA 73 DE W0ABE TU EE /</code> |
 | DeepCW | <code>? WD4DAN WD4DAN GE ESFB UR 57N 57N CO BK 4KTUG E UR 56N 56N GA GA 73BK BKTUGA 73DE W0ABE TUEE EE /1</code> |
 | CW Skimmer | <code>? WD4DAN GE ES FB UR 57N 57N CO BKE BK TU GA 73 DE W0ABE TU EE N</code><br><code>WD4DANWR 54TUGEEUR 56NE 56NE GAEG AE73BKR EE</code> |
-| fldigi | <code>*O* DANTD4DAN 9E T S FB TR *7N E7N ;0 A TUGE * N66N GA RA73TU GA :3DE W0ABE UUEE ET "</code> |
+| fldigi | <code>&#42;O&#42; DANTD4DAN 9E T S FB TR &#42;7N E7N ;0 A TUGE &#42; N66N GA RA73TU GA :3DE W0ABE UUEE ET "</code> |
 | ggmorse | <code>WD4DAN E WD4DAN GE E SFB EEUR E57N 57N CO ? E ?TUGE ?56NEEE TEEEE TE IEEEE TESN GA GA 73? E?TUGA 73DE W0ABE TUEE /E2S?TTTT</code> |
 
 <details>
