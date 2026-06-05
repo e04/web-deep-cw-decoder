@@ -11,7 +11,6 @@ A real-time Morse code (CW) decoder powered by a neural network model.
 - **Real-time Morse code decoding** using deep learning
 - **Robust decoding** for weak signals, QSB, and noisy conditions
 - **Multi-channel decoding** for handling multiple CW signals
-- **Multilingual Morse code support** - currently only supports Latin and Japanese Wabun（和文） code
 - **Audio pass-through** with noise reduction
 - **Multiplatform** - supports Windows/mac/Android/iOS devices
 
@@ -22,7 +21,6 @@ https://github.com/user-attachments/assets/9d459e46-bf52-40a8-89d4-79c07752bf61
 ### Benchmark
 
 - Results are from balanced mode.
-- Test audio was synthetically generated.
 - SNR is measured over a 2500 Hz bandwidth.
 - Error rate is reported as CER (Character Error Rate), defined as the percentage of inserted, deleted, or substituted characters relative to the reference text.
 
