@@ -2,11 +2,11 @@
 
 A real-time Morse code (CW) decoder powered by a neural network model.
 
-[DEMO](https://cw.e04.workers.dev/)
+Launch DeepCW: https://cw.e04.workers.dev/
 
 <img width="256" height="256" src="https://github.com/user-attachments/assets/780f899e-a59b-41b8-b785-1c6686f6da41" />
 
-### Features
+## Features
 
 - **Real-time Morse code decoding** using deep learning
 - **Robust decoding** for weak signals, QSB, and noisy conditions
@@ -18,7 +18,7 @@ A real-time Morse code (CW) decoder powered by a neural network model.
 
 https://github.com/user-attachments/assets/ab01b136-e23f-42ae-a7ce-93f1839e5d48
 
-### Benchmark
+## Benchmark
 
 - Results are from balanced mode.
 - SNR is measured over a 2500 Hz bandwidth.
@@ -119,3 +119,16 @@ Source: https://www.youtube.com/shorts/9jgZ94TzRys
 <img width="400" alt="Sample3_deepcw" src="https://github.com/user-attachments/assets/436fc8bb-6b8c-4590-8599-7cfb20f9384e" />
 
 </details>
+
+## Noise Reduction
+
+DeepCW includes a real-time, deep-learning-based noise reduction feature designed specifically for CW signals.
+
+In addition to decoding Morse code, DeepCW can pass the audio through a neural noise reduction model, making noisy CW signals easier to monitor by ear.
+
+Audio samples:
+
+https://github.com/user-attachments/assets/3d89fd8e-2f9e-4d25-930c-3112c3dea1d2
+
+https://github.com/user-attachments/assets/97dea0ce-732c-4bba-adcc-0b2901a7eab0
+
