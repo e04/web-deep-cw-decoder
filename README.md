@@ -11,8 +11,8 @@ A real-time Morse code (CW) decoder powered by a neural network model.
 - **Real-time Morse code decoding** using deep learning
 - **Robust decoding** for weak signals, QSB, and noisy conditions
 - **Multi-channel decoding** for handling multiple CW signals
-- **Audio pass-through** with noise reduction
-- **Multiplatform** - supports Windows/mac/Android/iOS devices
+- **Audio pass-through** with deep-learning-based noise reduction
+- **Cross-platform support** for Windows, macOS, Android, and iOS
 
 <img width="800" src="https://github.com/user-attachments/assets/3207c5c0-7613-4448-a42b-aac08b8fd030" />
 
