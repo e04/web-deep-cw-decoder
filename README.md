@@ -18,6 +18,14 @@ Launch DeepCW: https://cw.e04.workers.dev/
 
 https://github.com/user-attachments/assets/ab01b136-e23f-42ae-a7ce-93f1839e5d48
 
+## DeepCW Engine
+
+DeepCW's CW decoding model and reference implementation are available as a separate repository:
+
+https://github.com/e04/deepcw-engine
+
+It includes the model, metadata, and Python/Node.js examples for decoding Morse code from WAV audio.
+
 ## Benchmark
 
 - Results are from balanced mode.
