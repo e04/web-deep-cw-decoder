@@ -134,6 +134,8 @@ DeepCW includes a real-time, deep-learning-based noise reduction feature designe
 
 In addition to decoding Morse code, DeepCW can pass the audio through a neural noise reduction model, making noisy CW signals easier to monitor by ear.
 
+Also see: https://github.com/e04/HamNoise
+
 Audio samples:
 
 https://github.com/user-attachments/assets/3d89fd8e-2f9e-4d25-930c-3112c3dea1d2
