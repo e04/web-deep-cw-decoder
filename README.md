@@ -28,7 +28,7 @@ It includes the model, metadata, and Python/Node.js examples for decoding Morse 
 
 ## Benchmark
 
-- Results are from balanced mode.
+- Results are from `HIGH` mode.
 - SNR based on the time-averaged signal power over the entire record with an approximately 50% keying duty cycle., referenced to a 2,500 Hz noise bandwidth.
 - Error rate is reported as CER (Character Error Rate), defined as the percentage of inserted, deleted, or substituted characters relative to the reference text.
 
