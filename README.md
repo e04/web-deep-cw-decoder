@@ -30,6 +30,7 @@ It includes the model, metadata, and Python/Node.js examples for decoding Morse 
 
 - Results are from `HIGH` mode.
 - SNR based on the time-averaged signal power over the entire record with an approximately 50% keying duty cycle., referenced to a 2,500 Hz noise bandwidth.
+- AWGN environment.
 - Error rate is reported as CER (Character Error Rate), defined as the percentage of inserted, deleted, or substituted characters relative to the reference text.
 
 It achieves 0.00% error from 0 to -4 dB SNR at all tested speeds, and remains nearly error-free at -6 dB.
