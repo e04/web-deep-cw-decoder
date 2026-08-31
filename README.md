@@ -2,7 +2,7 @@
 
 A real-time Morse code (CW) decoder powered by a neural network model.
 
-Launch DeepCW: https://cw.e04.workers.dev/
+Launch DeepCW: https://deepcw.cc/
 
 <img width="256" height="256" src="https://github.com/user-attachments/assets/780f899e-a59b-41b8-b785-1c6686f6da41" />
 
