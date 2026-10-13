@@ -34,6 +34,8 @@ DeepRTTY is a high-accuracy RTTY decoding library built with the same deep-learn
 
 It uses the same neural approach as DeepCW to decode RTTY reliably even under weak signals, QSB and heavy noise. It recovers copy where conventional demodulators fail.
 
+You can try DeepRTTY directly in [DeepCW](https://deepcw.cc/) by switching to **RTTY mode** in the settings.
+
 ## Benchmark
 
 - Results are from `HIGH` mode.
