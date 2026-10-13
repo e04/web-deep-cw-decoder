@@ -26,6 +26,14 @@ https://github.com/e04/deepcw-engine
 
 It includes the model, metadata, and Python/Node.js examples for decoding Morse code from WAV audio.
 
+## DeepRTTY
+
+https://github.com/e04/DeepRTTY
+
+DeepRTTY is a high-accuracy RTTY decoding library built with the same deep-learning technology as DeepCW.
+
+It uses the same neural approach as DeepCW to decode RTTY reliably even under weak signals, QSB and heavy noise. It recovers copy where conventional demodulators fail.
+
 ## Benchmark
 
 - Results are from `HIGH` mode.
