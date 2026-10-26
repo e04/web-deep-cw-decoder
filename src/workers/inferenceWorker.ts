@@ -19,8 +19,8 @@ import {
   getModelKey,
 } from "../utils/inferenceProtocol";
 import {
-  audioToBinSequenceTensor,
   audioToNarrowShiftedSpectrogramTensor,
+  estimateCwBinSnr,
   audioToShiftedSpectrogramTensor,
   audioToSpectrogramTensor,
 } from "../utils/spectrogramUtils";
@@ -38,7 +38,6 @@ function resolveModelUrl(fileName: string): string {
 }
 
 const MODEL_URLS: Record<ModelKey, string> = {
-  cw_detect: resolveModelUrl("detect_cw/88C0EAD8-52C6-460C-9B9F-EE6CB56221F3"),
   en: resolveModelUrl("en/39578E22-27CE-4AFB-989F-450345767A53"),
   en_narrow: resolveModelUrl("en_narrow/4C1FFB1B-6F80-4B73-A5D2-6089EAF8E102"),
   ja: resolveModelUrl("ja/A960AA1B-FFD3-4795-A881-484F4EEB0455"),
@@ -350,39 +349,20 @@ async function handleRunInference(
 
 async function handleDetectCwBins(
   audioBuffer: Float32Array,
-  backend: InferenceBackend,
   minFreqHz: number,
   maxFreqHz: number,
   lockSnrThresholdDb: number,
   releaseSnrThresholdDb: number,
   lockedFrequencies: number[],
 ): Promise<{ frequency: number; snrDb: number }[]> {
-  const ort = await getOrtModule(backend);
-  const session = await ensureSession("cw_detect", backend);
-  const binSequences = audioToBinSequenceTensor(audioBuffer, minFreqHz, maxFreqHz);
-  if (!binSequences) {
+  const binSnr = estimateCwBinSnr(audioBuffer, minFreqHz, maxFreqHz);
+  if (!binSnr) {
     return [];
   }
 
-  const inputTensor = new ort.Tensor(
-    "float32",
-    binSequences.data,
-    binSequences.dims,
-  );
-
-  const inputName = session.inputNames[0];
-  const feeds = { [inputName]: inputTensor };
-  const results = await session.run(feeds);
-  const outputTensor = results[session.outputNames[0]];
-  const rawSnrValues = outputTensor.data as Float32Array | number[];
-  const snrValues = new Float32Array(binSequences.frequencies.length);
-  for (let index = 0; index < snrValues.length; index++) {
-    snrValues[index] = Number(rawSnrValues[index] ?? 0);
-  }
-
-  const scoredBins = binSequences.frequencies.map((frequency, index) => ({
+  const scoredBins = binSnr.frequencies.map((frequency, index) => ({
     frequency,
-    snrDb: snrValues[index],
+    snrDb: binSnr.snrDb[index],
   }));
 
   scoredBins.sort((left, right) => right.snrDb - left.snrDb);
@@ -515,19 +495,6 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         return;
       }
 
-      if (message.type === "loadCwDetectionModel") {
-        const modelKey: ModelKey = "cw_detect";
-        await ensureSession(
-          modelKey,
-          message.backend,
-          (progress) => reportProgress("ort", progress, message.backend),
-          (progress) =>
-            reportProgress("model", progress, message.backend, modelKey),
-        );
-        respond({ id: message.id, type: "modelLoaded" });
-        return;
-      }
-
       if (message.type === "resetCwDetectionState") {
         respond({ id: message.id, type: "stateReset" });
         return;
@@ -565,7 +532,6 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       if (message.type === "detectCwBins") {
         const candidates = await handleDetectCwBins(
           message.audioBuffer,
-          message.backend,
           message.minFreqHz,
           message.maxFreqHz,
           message.lockSnrThresholdDb,

@@ -211,77 +211,78 @@ export function audioToNarrowShiftedSpectrogramTensor(
   };
 }
 
-export function audioToBinSequenceTensor(
+const CW_ON_LEVEL_QUANTILE = 0.9;
+// Keying sidebands of a strong signal show up as weaker peaks next to it.
+const CW_SIDEBAND_MASK_HZ = 150;
+const CW_SIDEBAND_MASK_DB = 18;
+
+/**
+ * Per-bin CW SNR estimate: the bin's keyed-on power (90th percentile over
+ * time) relative to the median power of the whole band. Pure noise scores
+ * about 5 dB. Bins far weaker than a nearby strong bin are treated as its
+ * keying sidebands and dropped to 0 dB.
+ */
+export function estimateCwBinSnr(
   audio: Float32Array,
   minFreqHz: number,
   maxFreqHz: number,
-): { data: Float32Array; dims: [number, 1, number]; frequencies: number[] } | null {
+): { frequencies: number[]; snrDb: Float32Array } | null {
   const timeSteps = cwDetectStft.getFrameCount(audio.length);
   if (timeSteps === 0) {
     return null;
   }
 
-  const clampedMinFreqHz = Math.max(0, minFreqHz);
-  const clampedMaxFreqHz = Math.min(SAMPLE_RATE / 2, maxFreqHz);
-  if (clampedMinFreqHz > clampedMaxFreqHz) {
-    return null;
-  }
-
-  const minBin = Math.max(0, Math.floor(clampedMinFreqHz / BIN_RESOLUTION));
+  const minBin = Math.max(0, Math.ceil(Math.max(0, minFreqHz) / BIN_RESOLUTION));
   const maxBin = Math.min(
     TOTAL_BINS - 1,
-    Math.ceil(clampedMaxFreqHz / BIN_RESOLUTION),
+    Math.floor(Math.min(SAMPLE_RATE / 2, maxFreqHz) / BIN_RESOLUTION),
   );
-  const batchSize = maxBin - minBin + 1;
-
-  if (batchSize <= 0) {
+  const binCount = maxBin - minBin + 1;
+  if (binCount <= 0) {
     return null;
   }
 
-  const flattenedSequences = new Float32Array(batchSize * timeSteps);
-  const frequencies = Array.from(
-    { length: batchSize },
-    (_, index) => (minBin + index) * BIN_RESOLUTION,
-  );
-
+  const powers = new Float32Array(binCount * timeSteps);
   cwDetectStft.forEachSpectrum(audio, (complexFrame, frameIndex) => {
     for (let bin = minBin; bin <= maxBin; bin++) {
       const real = complexFrame[bin * 2];
       const imag = complexFrame[bin * 2 + 1];
-      const magnitude = Math.sqrt(real * real + imag * imag);
-      const batchIndex = bin - minBin;
-      flattenedSequences[batchIndex * timeSteps + frameIndex] = magnitude;
+      powers[(bin - minBin) * timeSteps + frameIndex] = real * real + imag * imag;
     }
   });
 
-  for (let batchIndex = 0; batchIndex < batchSize; batchIndex++) {
-    const offset = batchIndex * timeSteps;
-    let mean = 0;
+  const noisePower = Math.max(
+    Float32Array.from(powers).sort()[Math.floor(powers.length / 2)],
+    1e-12,
+  );
+  const snrDb = new Float32Array(binCount);
+  for (let index = 0; index < binCount; index++) {
+    const binPowers = powers
+      .subarray(index * timeSteps, (index + 1) * timeSteps)
+      .slice()
+      .sort();
+    const onPower = binPowers[Math.floor(CW_ON_LEVEL_QUANTILE * (timeSteps - 1))];
+    snrDb[index] = 10 * Math.log10(Math.max(onPower, 1e-12) / noisePower);
+  }
 
-    for (let frameIndex = 0; frameIndex < timeSteps; frameIndex++) {
-      const logMagnitude = Math.log1p(flattenedSequences[offset + frameIndex]);
-      flattenedSequences[offset + frameIndex] = logMagnitude;
-      mean += logMagnitude;
-    }
-
-    mean /= timeSteps;
-
-    let variance = 0;
-    for (let frameIndex = 0; frameIndex < timeSteps; frameIndex++) {
-      const centered = flattenedSequences[offset + frameIndex] - mean;
-      variance += centered * centered;
-    }
-
-    const std = Math.max(Math.sqrt(variance / timeSteps), 1e-4);
-    for (let frameIndex = 0; frameIndex < timeSteps; frameIndex++) {
-      flattenedSequences[offset + frameIndex] =
-        (flattenedSequences[offset + frameIndex] - mean) / std;
+  const maskBins = Math.round(CW_SIDEBAND_MASK_HZ / BIN_RESOLUTION);
+  const maskedSnrDb = snrDb.slice();
+  for (let index = 0; index < binCount; index++) {
+    const lo = Math.max(0, index - maskBins);
+    const hi = Math.min(binCount - 1, index + maskBins);
+    for (let other = lo; other <= hi; other++) {
+      if (snrDb[other] - snrDb[index] > CW_SIDEBAND_MASK_DB) {
+        maskedSnrDb[index] = 0;
+        break;
+      }
     }
   }
 
   return {
-    data: flattenedSequences,
-    dims: [batchSize, 1, timeSteps],
-    frequencies,
+    frequencies: Array.from(
+      { length: binCount },
+      (_, index) => (minBin + index) * BIN_RESOLUTION,
+    ),
+    snrDb: maskedSnrDb,
   };
 }

@@ -7,7 +7,7 @@ import type { AudioBufferState } from "./useAudioProcessing";
 import { waitForNextAudioChunk } from "../useDecode";
 import {
   detectCwBins,
-  loadCwDetectionModel,
+  loadModel,
   resetCwDetectionState,
 } from "../utils/inference";
 import type { InferenceBackend } from "../utils/inferenceProtocol";
@@ -65,7 +65,7 @@ export const usePileupDetection = ({
     let cancelled = false;
     setLoadError(null);
 
-    void loadCwDetectionModel(backend)
+    void loadModel("en", backend, "narrow")
       .then(() => {
         if (!cancelled) {
           setLoadedBackend(backend);
@@ -76,7 +76,7 @@ export const usePileupDetection = ({
           setLoadError(
             error instanceof Error
               ? error.message
-              : "Failed to load CW detection model.",
+              : "Failed to load pileup model.",
           );
         }
       });

@@ -47,7 +47,6 @@ export const ENGLISH_CONFIG = {
 };
 
 export const ENGLISH_NARROW_MODEL_FILE = "models/model_en_narrow.onnx";
-export const DETECT_CW_MODEL_FILE = "models/detect_cw_model.onnx";
 
 export const JAPANESE_CONFIG = {
   MODEL_FILE: "models/model_ja.onnx",
@@ -169,6 +168,7 @@ export const PILEUP_MIN_FREQ_HZ = 100;
 export const PILEUP_MAX_FREQ_HZ = 2000;
 export const PILEUP_MAX_PEAKS = 5;
 export const PILEUP_MATCH_HZ = BIN_RESOLUTION * 1.2;
-export const PILEUP_LOCK_SNR_THRESHOLD_DB = -10;
-export const PILEUP_RELEASE_SNR_THRESHOLD_DB = -10;
+// Scored by estimateCwBinSnr; pure noise sits around 5 dB.
+export const PILEUP_LOCK_SNR_THRESHOLD_DB = 12;
+export const PILEUP_RELEASE_SNR_THRESHOLD_DB = 9;
 export const PILEUP_TEXT_HOLD_MS = 1500;

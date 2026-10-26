@@ -27,10 +27,6 @@ type RunPileupInferenceRequest = Omit<
   "id"
 >;
 type LoadModelRequest = Omit<Extract<WorkerRequest, { type: "loadModel" }>, "id">;
-type LoadCwDetectionModelRequest = Omit<
-  Extract<WorkerRequest, { type: "loadCwDetectionModel" }>,
-  "id"
->;
 type ResetCwDetectionStateRequest = Omit<
   Extract<WorkerRequest, { type: "resetCwDetectionState" }>,
   "id"
@@ -214,7 +210,6 @@ function sendMessage(
     | LoadModelRequest
     | RunInferenceRequest
     | RunPileupInferenceRequest
-    | LoadCwDetectionModelRequest
     | ResetCwDetectionStateRequest
     | DetectCwBinsRequest,
   transfer?: Transferable[],
@@ -250,40 +245,6 @@ export async function loadModel(
       if (response.type === "modelLoaded") return;
       if (response.type === "error") throw new Error(response.error);
       throw new Error("Unexpected worker response while loading model.");
-    })
-    .catch((error) => {
-      modelLoadPromises[backend][modelKey] = null;
-      throw error;
-    });
-
-  modelLoadPromises[backend][modelKey] = promise;
-
-  return promise;
-}
-
-export async function loadCwDetectionModel(
-  backend: InferenceBackend = "wasm",
-): Promise<void> {
-  const modelKey: ModelKey = "cw_detect";
-  const cachedPromise = modelLoadPromises[backend][modelKey];
-  if (cachedPromise) {
-    return cachedPromise;
-  }
-
-  const promise = sendMessage({
-    type: "loadCwDetectionModel",
-    backend,
-  })
-    .then((response) => {
-      setLoadProgress(backend, "ort", 1);
-      setLoadProgress(backend, "model", 1, modelKey);
-      if (response.type === "modelLoaded") {
-        return;
-      }
-      if (response.type === "error") {
-        throw new Error(response.error);
-      }
-      throw new Error("Unexpected worker response while loading CW detection model.");
     })
     .catch((error) => {
       modelLoadPromises[backend][modelKey] = null;
@@ -443,13 +404,6 @@ export async function detectCwBins(
   releaseSnrThresholdDb: number,
   lockedFrequencies: number[],
 ): Promise<CwDetectionCandidate[]> {
-  try {
-    await loadCwDetectionModel(backend);
-  } catch (error) {
-    console.error("Failed to load CW detection model", error);
-    return [];
-  }
-
   const audioCopy = audioBuffer.slice();
 
   try {

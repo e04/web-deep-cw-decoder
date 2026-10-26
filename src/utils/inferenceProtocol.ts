@@ -3,8 +3,7 @@ export type EnglishModelVariant = "standard" | "narrow";
 export type ModelKey =
   | "en"
   | "en_narrow"
-  | "ja"
-  | "cw_detect";
+  | "ja";
 export type InferenceDecodeMode = "display" | "plain" | "detailed";
 export type InferenceWordSpaceSpan = {
   startFrame: number;
@@ -27,7 +26,6 @@ export const MODEL_KEYS: readonly ModelKey[] = [
   "en",
   "en_narrow",
   "ja",
-  "cw_detect",
 ] as const;
 
 export function getModelKey(
@@ -71,11 +69,6 @@ export type WorkerRequest =
       backend: InferenceBackend;
       audioBuffer: Float32Array;
       tracks: { id: number; frequency: number }[];
-    }
-  | {
-      id: number;
-      type: "loadCwDetectionModel";
-      backend: InferenceBackend;
     }
   | {
       id: number;

@@ -32,10 +32,7 @@ function getLoadProgressView(
   snapshot: BackendLoadProgress = getLoadProgressSnapshot(backend),
 ): LoadProgressView {
   const englishModelKey = getModelKey("en", englishModelVariant);
-  const modelEnProgress =
-    includePileupDetectionModel && englishModelVariant === "narrow"
-      ? Math.min(snapshot.model[englishModelKey], snapshot.model.cw_detect)
-      : snapshot.model[englishModelKey];
+  const modelEnProgress = snapshot.model[englishModelKey];
 
   return {
     ortPercent: toPercent(snapshot.ort),
