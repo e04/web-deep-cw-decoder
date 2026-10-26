@@ -127,9 +127,20 @@ export const NumToChar = Object.fromEntries(
   ENGLISH_CONFIG.VOCABULARY.map((char, i) => [i, char]),
 );
 
+// Audio runs at 9600 Hz; the decode models expect 3200 Hz input, so their
+// STFT params (fft 256, hop 48 @ 3200 Hz) are scaled by 3 to keep the same
+// window/hop durations and 12.5 Hz bin resolution.
 export const FFT_LENGTH = 768;
-export const HOP_LENGTH = 192;
+export const HOP_LENGTH = 144;
+export const OUTPUT_TIME_STRIDE = 2;
+export const OUTPUT_HOP_LENGTH = HOP_LENGTH * OUTPUT_TIME_STRIDE;
+export const CW_DETECT_HOP_LENGTH = 192;
 export const SAMPLE_RATE = 9600;
+export const getModelOutputFrameCount = (sampleCount: number) =>
+  Math.ceil((Math.floor(sampleCount / HOP_LENGTH) + 1) / OUTPUT_TIME_STRIDE);
+// Input frames are center-padded, so output frame t is centered on t * OUTPUT_HOP_LENGTH.
+export const getOutputFrameCenterSample = (frame: number) =>
+  frame * OUTPUT_HOP_LENGTH;
 export const BIN_RESOLUTION = SAMPLE_RATE / FFT_LENGTH;
 export const AUDIO_CHUNK_SAMPLES = 2048;
 export const WIDE_LAYOUT_WIDTH_PX = 1244;
@@ -151,10 +162,8 @@ export const DEFAULT_DECODE_CENTER_FREQ_HZ = Math.round(
 export const DEFAULT_DECODE_BANDWIDTH_HZ =
   DECODABLE_MAX_FREQ_HZ - DECODABLE_MIN_FREQ_HZ;
 
-export const NARROW_SHIFT_BINS = 5;
-// A 5-bin narrow slice spans four inter-bin intervals between outer bin centers.
-export const PILEUP_FILTER_WIDTH_HZ =
-  BIN_RESOLUTION * (NARROW_SHIFT_BINS - 1);
+export const NARROW_SHIFT_BINS = 3;
+export const PILEUP_FILTER_WIDTH_HZ = BIN_RESOLUTION * 4;
 export const PILEUP_WINDOW_S = 8;
 export const PILEUP_MIN_FREQ_HZ = 100;
 export const PILEUP_MAX_FREQ_HZ = 2000;

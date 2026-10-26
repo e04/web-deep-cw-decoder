@@ -3,19 +3,17 @@ import { Box } from "@mantine/core";
 import {
   AUDIO_CHUNK_SAMPLES,
   SAMPLE_RATE,
-  FFT_LENGTH,
-  HOP_LENGTH,
+  OUTPUT_HOP_LENGTH,
   getBufferSamples,
+  getModelOutputFrameCount,
 } from "./const";
 
 // Default animation duration: audio chunk interval = audio chunk / sample rate
 const DEFAULT_SCROLL_DURATION_S = AUDIO_CHUNK_SAMPLES / SAMPLE_RATE;
-const SCROLL_FRAME_COUNT = AUDIO_CHUNK_SAMPLES / HOP_LENGTH;
+const SCROLL_FRAME_COUNT = AUDIO_CHUNK_SAMPLES / OUTPUT_HOP_LENGTH;
 
 const getDecodeCharCount = (decodeWindowSeconds: number) =>
-  Math.floor(
-    (getBufferSamples(decodeWindowSeconds) - FFT_LENGTH) / HOP_LENGTH,
-  ) + 1;
+  getModelOutputFrameCount(getBufferSamples(decodeWindowSeconds));
 
 const getMinimumCharacterGapPx = (
   fontSize: number,

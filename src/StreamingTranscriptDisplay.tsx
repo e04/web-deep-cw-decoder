@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Box } from "@mantine/core";
-import { FFT_LENGTH, HOP_LENGTH } from "./const";
+import {
+  FFT_LENGTH,
+  OUTPUT_HOP_LENGTH,
+  getOutputFrameCenterSample,
+} from "./const";
 import type { StreamingDecodeSegment } from "./hooks/useStreamingDecode";
 import { runInferencePlain } from "./utils/inference";
 import type { InferenceBackend } from "./utils/inferenceProtocol";
@@ -163,12 +167,12 @@ function getPopupPosition(
 }
 
 function getFrameEndSample(frame: number): number {
-  return frame * HOP_LENGTH + FFT_LENGTH;
+  return getOutputFrameCenterSample(frame) + OUTPUT_HOP_LENGTH;
 }
 
 function getSpanMidpointSample(startFrame: number, endFrame: number): number {
   const midFrame = (startFrame + endFrame) / 2;
-  return Math.round(midFrame * HOP_LENGTH + FFT_LENGTH / 2);
+  return Math.round(getOutputFrameCenterSample(midFrame));
 }
 
 function getRedecodeAudioSlice(token: RedecodeToken): Float32Array {

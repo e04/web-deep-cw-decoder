@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AUDIO_CHUNK_SAMPLES,
-  FFT_LENGTH,
-  HOP_LENGTH,
   SAMPLE_RATE,
+  getOutputFrameCenterSample,
 } from "../const";
 import { waitForNextAudioChunk } from "../useDecode";
 import {
@@ -108,7 +107,7 @@ function dropLeadingSamples(
 
 function getSpanSplitSample(span: InferenceWordSpaceSpan): number {
   const midFrame = (span.startFrame + span.endFrame) / 2;
-  return Math.round(midFrame * HOP_LENGTH + FFT_LENGTH / 2);
+  return Math.round(getOutputFrameCenterSample(midFrame));
 }
 
 function getConfirmedSplitPoint(

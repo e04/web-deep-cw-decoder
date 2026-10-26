@@ -1,6 +1,7 @@
 import { STFT } from "../stft";
 import {
   BIN_RESOLUTION,
+  CW_DETECT_HOP_LENGTH,
   DECODABLE_MAX_FREQ_HZ,
   DECODABLE_MIN_FREQ_HZ,
   FFT_LENGTH,
@@ -12,9 +13,17 @@ import {
 import { applyBandpassFilter } from "./audioFilters";
 
 const stft = new STFT(FFT_LENGTH, HOP_LENGTH);
+const cwDetectStft = new STFT(FFT_LENGTH, CW_DETECT_HOP_LENGTH);
 const TOTAL_BINS = FFT_LENGTH / 2 + 1;
-const START_BIN = Math.round(DECODABLE_MIN_FREQ_HZ / BIN_RESOLUTION);
-const END_BIN = Math.round(DECODABLE_MAX_FREQ_HZ / BIN_RESOLUTION) + 1;
+const START_BIN = Math.ceil(DECODABLE_MIN_FREQ_HZ / BIN_RESOLUTION);
+const END_BIN = Math.floor(DECODABLE_MAX_FREQ_HZ / BIN_RESOLUTION) + 1;
+const CENTER_PAD = FFT_LENGTH / 2;
+const NOISE_LEVEL_QUANTILE = 0.9;
+const NOISE_LEVEL_RAYLEIGH_FACTOR = Math.sqrt(
+  -2 * Math.log(1 - NOISE_LEVEL_QUANTILE),
+);
+const NOISE_LEVEL_MIN_RELATIVE_TO_PEAK = 1e-3;
+const NOISE_LEVEL_MIN = 1e-5;
 const CROPPED_BINS = END_BIN - START_BIN;
 const NORMAL_CENTER_BIN = Math.round((START_BIN + END_BIN - 1) / 2); // bin 64 = 800Hz
 const NARROW_CENTER_IDX = Math.floor(NARROW_SHIFT_BINS / 2);
@@ -27,27 +36,40 @@ if (CROPPED_BINS !== 65) {
   throw new Error(`Model input must remain 65 bins, got ${CROPPED_BINS}.`);
 }
 
-function normalizeSpectrogramPerSampleCmvn(
+// Matches the model's "noise_q90_log1p" normalization. `noiseSource` lets
+// zero-filled bins be left out of the noise estimate.
+function normalizeSpectrogramNoiseLog1p(
   spectrogram: Float32Array,
+  noiseSource: Float32Array = spectrogram,
 ): Float32Array {
-  let mean = 0;
-  for (let i = 0; i < spectrogram.length; i++) {
-    mean += spectrogram[i];
+  const sorted = Float32Array.from(noiseSource).sort();
+  if (sorted.length === 0) {
+    return spectrogram;
   }
-  mean /= spectrogram.length;
-
-  let variance = 0;
+  const noiseLevel = Math.max(
+    sorted[Math.floor(NOISE_LEVEL_QUANTILE * (sorted.length - 1))] /
+      NOISE_LEVEL_RAYLEIGH_FACTOR,
+    sorted[sorted.length - 1] * NOISE_LEVEL_MIN_RELATIVE_TO_PEAK,
+    NOISE_LEVEL_MIN,
+  );
   for (let i = 0; i < spectrogram.length; i++) {
-    const centered = spectrogram[i] - mean;
-    variance += centered * centered;
+    spectrogram[i] = Math.log1p(spectrogram[i] / noiseLevel);
   }
-
-  const std = Math.max(Math.sqrt(variance / spectrogram.length), 1e-5);
-  for (let i = 0; i < spectrogram.length; i++) {
-    spectrogram[i] = (spectrogram[i] - mean) / std;
-  }
-
   return spectrogram;
+}
+
+// Reflect-pads like a centered STFT so frame t is centered on sample t * HOP_LENGTH.
+function centerPad(audio: Float32Array): Float32Array | null {
+  if (audio.length <= CENTER_PAD + 1) {
+    return null;
+  }
+  const padded = new Float32Array(audio.length + CENTER_PAD * 2);
+  for (let i = 0; i < CENTER_PAD; i++) {
+    padded[i] = audio[CENTER_PAD - i];
+    padded[CENTER_PAD + audio.length + i] = audio[audio.length - 2 - i];
+  }
+  padded.set(audio, CENTER_PAD);
+  return padded;
 }
 
 export function audioToSpectrogramTensor(
@@ -65,13 +87,14 @@ export function audioToSpectrogramTensor(
     );
   }
 
-  const timeSteps = stft.getFrameCount(processedAudio.length);
-  if (timeSteps === 0) {
+  const paddedAudio = centerPad(processedAudio);
+  if (!paddedAudio) {
     return null;
   }
+  const timeSteps = stft.getFrameCount(paddedAudio.length);
 
   const flattenedSpectrogram = new Float32Array(timeSteps * CROPPED_BINS);
-  stft.forEachSpectrum(processedAudio, (complexFrame, frameIndex) => {
+  stft.forEachSpectrum(paddedAudio, (complexFrame, frameIndex) => {
     const offset = frameIndex * CROPPED_BINS;
     for (let bin = START_BIN; bin < END_BIN; bin++) {
       const real = complexFrame[bin * 2];
@@ -82,7 +105,7 @@ export function audioToSpectrogramTensor(
     }
   });
 
-  normalizeSpectrogramPerSampleCmvn(flattenedSpectrogram);
+  normalizeSpectrogramNoiseLog1p(flattenedSpectrogram);
 
   return {
     data: flattenedSpectrogram,
@@ -100,8 +123,9 @@ export function audioToShiftedSpectrogramTensor(
   targetFreq: number,
   bandwidth: number = PILEUP_FILTER_WIDTH_HZ,
 ): { data: Float32Array; dims: [number, 1, number, number] } | null {
-  const timeSteps = stft.getFrameCount(audio.length);
-  if (timeSteps === 0) return null;
+  const paddedAudio = centerPad(audio);
+  if (!paddedAudio) return null;
+  const timeSteps = stft.getFrameCount(paddedAudio.length);
 
   const targetBin = Math.round(targetFreq / BIN_RESOLUTION);
   const halfWidthBins = Math.ceil(bandwidth / 2 / BIN_RESOLUTION);
@@ -109,7 +133,7 @@ export function audioToShiftedSpectrogramTensor(
 
   const flattenedSpectrogram = new Float32Array(timeSteps * CROPPED_BINS);
 
-  stft.forEachSpectrum(audio, (complexFrame, frameIndex) => {
+  stft.forEachSpectrum(paddedAudio, (complexFrame, frameIndex) => {
     const offset = frameIndex * CROPPED_BINS;
     for (let d = -halfWidthBins; d <= halfWidthBins; d++) {
       const srcBin = targetBin + d;
@@ -129,7 +153,19 @@ export function audioToShiftedSpectrogramTensor(
     }
   });
 
-  normalizeSpectrogramPerSampleCmvn(flattenedSpectrogram);
+  const destStart = Math.max(0, destCenterIdx - halfWidthBins);
+  const destEnd = Math.min(CROPPED_BINS, destCenterIdx + halfWidthBins + 1);
+  const populated = new Float32Array(timeSteps * (destEnd - destStart));
+  for (let t = 0; t < timeSteps; t++) {
+    populated.set(
+      flattenedSpectrogram.subarray(
+        t * CROPPED_BINS + destStart,
+        t * CROPPED_BINS + destEnd,
+      ),
+      t * (destEnd - destStart),
+    );
+  }
+  normalizeSpectrogramNoiseLog1p(flattenedSpectrogram, populated);
 
   return {
     data: flattenedSpectrogram,
@@ -138,20 +174,21 @@ export function audioToShiftedSpectrogramTensor(
 }
 
 /**
- * Compute spectrogram for the 5-bin pileup model by extracting
+ * Compute spectrogram for the 3-bin pileup model by extracting
  * only the centered narrow slice around the target frequency.
  */
 export function audioToNarrowShiftedSpectrogramTensor(
   audio: Float32Array,
   targetFreq: number,
 ): { data: Float32Array; dims: [number, 1, number, number] } | null {
-  const timeSteps = stft.getFrameCount(audio.length);
-  if (timeSteps === 0) return null;
+  const paddedAudio = centerPad(audio);
+  if (!paddedAudio) return null;
+  const timeSteps = stft.getFrameCount(paddedAudio.length);
 
   const targetBin = Math.round(targetFreq / BIN_RESOLUTION);
   const flattenedSpectrogram = new Float32Array(timeSteps * NARROW_SHIFT_BINS);
 
-  stft.forEachSpectrum(audio, (complexFrame, frameIndex) => {
+  stft.forEachSpectrum(paddedAudio, (complexFrame, frameIndex) => {
     const offset = frameIndex * NARROW_SHIFT_BINS;
     for (let d = -NARROW_CENTER_IDX; d <= NARROW_CENTER_IDX; d++) {
       const srcBin = targetBin + d;
@@ -166,7 +203,7 @@ export function audioToNarrowShiftedSpectrogramTensor(
     }
   });
 
-  normalizeSpectrogramPerSampleCmvn(flattenedSpectrogram);
+  normalizeSpectrogramNoiseLog1p(flattenedSpectrogram);
 
   return {
     data: flattenedSpectrogram,
@@ -179,7 +216,7 @@ export function audioToBinSequenceTensor(
   minFreqHz: number,
   maxFreqHz: number,
 ): { data: Float32Array; dims: [number, 1, number]; frequencies: number[] } | null {
-  const timeSteps = stft.getFrameCount(audio.length);
+  const timeSteps = cwDetectStft.getFrameCount(audio.length);
   if (timeSteps === 0) {
     return null;
   }
@@ -207,7 +244,7 @@ export function audioToBinSequenceTensor(
     (_, index) => (minBin + index) * BIN_RESOLUTION,
   );
 
-  stft.forEachSpectrum(audio, (complexFrame, frameIndex) => {
+  cwDetectStft.forEachSpectrum(audio, (complexFrame, frameIndex) => {
     for (let bin = minBin; bin <= maxBin; bin++) {
       const real = complexFrame[bin * 2];
       const imag = complexFrame[bin * 2 + 1];
